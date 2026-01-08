@@ -36,7 +36,7 @@ namespace SaraBank.API.Configurations
 
             // --- Mensageria (Pub/Sub) ---
             services.AddSingleton(sp => {
-                var topicName = TopicName.FromProjectTopic(projectId, "sara-bank-eventos");
+                var topicName = TopicName.FromProjectTopic(projectId, "sara-bank-transacoes-topic");
                 return PublisherClient.Create(topicName);
             });
 
