@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -19,8 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SaraBank.Application\SaraBank.Application.csproj" />
     <ProjectReference Include="..\SaraBank.Domain\SaraBank.Domain.csproj" />
+    <ProjectReference Include="..\SaraBank.Infrastructure\SaraBank.Infrastructure.csproj" />
   </ItemGroup>
+
 
   <ItemGroup>
     <Using Include="Xunit" />

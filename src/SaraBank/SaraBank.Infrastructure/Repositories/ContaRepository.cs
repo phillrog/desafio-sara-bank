@@ -2,9 +2,8 @@
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Infrastructure.Persistence;
-using SaraBank.Infrastructure.Repositories;
 
-namespace SaraBank.Application.Repositories
+namespace SaraBank.Infrastructure.Repositories
 {
     public class ContaRepository : RepositoryBase, IContaRepository
     {

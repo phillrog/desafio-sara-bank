@@ -1,7 +1,7 @@
 ﻿using FluentAssertions;
 using SaraBank.Domain.Entities;
 
-namespace SaraBank.UnitTests
+namespace SaraBank.UnitTests.Domain
 {
     public class ContaCorrenteTest
     {
