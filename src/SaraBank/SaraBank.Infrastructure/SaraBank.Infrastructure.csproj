@@ -12,4 +12,8 @@
     <PackageReference Include="Polly" Version="8.6.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\SaraBank.Domain\SaraBank.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
