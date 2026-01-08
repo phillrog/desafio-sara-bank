@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/1 - Domain/">
+    <Project Path="SaraBank.Domain/SaraBank.Domain.csproj" />
+  </Folder>
+  <Folder Name="/2 - Application/">
+    <Project Path="SaraBank.Application/SaraBank.Application.csproj" />
+  </Folder>
+  <Folder Name="/3 - Infrastructure/">
+    <Project Path="SaraBank.Infrastructure/SaraBank.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/4 - Presentation/">
+    <Project Path="SaraBank.API/SaraBank.API.csproj" />
+  </Folder>
+  <Folder Name="/5 - Tests/">
+    <Project Path="SaraBank.UnitTests/SaraBank.UnitTests.csproj" />
+  </Folder>
+</Solution>
