@@ -9,16 +9,16 @@ public class FirestoreOutboxRepository : IOutboxRepository
 
     public FirestoreOutboxRepository(FirestoreDb db) => _db = db;
 
-    public async Task<IEnumerable<OutboxMessage>> ObterNaoProcessadosAsync(int limite, CancellationToken ct)
+    public async Task<IEnumerable<OutboxMessageDTO>> ObterNaoProcessadosAsync(int limite, CancellationToken ct)
     {
         var collection = _db.Collection("Outbox");
         var query = collection.WhereEqualTo("Processado", false).Limit(limite);
         var snapshot = await query.GetSnapshotAsync(ct);
 
-        var mensagens = new List<OutboxMessage>();
+        var mensagens = new List<OutboxMessageDTO>();
         foreach (var doc in snapshot.Documents)
         {
-            mensagens.Add(new OutboxMessage(
+            mensagens.Add(new OutboxMessageDTO(
                 doc.Id,
                 doc.GetValue<string>("Payload"),
                 doc.GetValue<string>("Tipo")
@@ -31,5 +31,21 @@ public class FirestoreOutboxRepository : IOutboxRepository
     {
         var docRef = _db.Collection("Outbox").Document(id);
         await docRef.UpdateAsync("Processado", true);
+    }
+
+    public async Task AdicionarAsync(OutboxMessageDTO message, CancellationToken ct)
+    {
+        var docRef = _db.Collection("Outbox").Document(message.Id);
+
+        var dados = new Dictionary<string, object>
+        {
+            { "Id", message.Id },
+            { "Payload", message.Payload },
+            { "Tipo", message.Tipo },
+            { "Processado", false },
+            { "CriadoEm", DateTime.UtcNow }
+        };
+
+        await docRef.SetAsync(dados, cancellationToken: ct);
     }
 }

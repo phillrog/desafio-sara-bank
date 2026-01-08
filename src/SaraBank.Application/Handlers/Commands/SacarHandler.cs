@@ -4,7 +4,7 @@ using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 
-namespace SaraBank.Application.Handlers;
+namespace SaraBank.Application.Handlers.Commands;
 
 public class SacarHandler : IRequestHandler<SacarCommand, bool>
 {

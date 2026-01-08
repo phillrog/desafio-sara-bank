@@ -7,6 +7,7 @@
   </Folder>
   <Folder Name="/3 - Infrastructure/">
     <Project Path="SaraBank.Infrastructure/SaraBank.Infrastructure.csproj" />
+    <Project Path="SaraBank.Worker/SaraBank.Worker.csproj" Id="67ed5847-a69e-47b1-9f54-324a1a19ef3d" />
   </Folder>
   <Folder Name="/4 - Presentation/">
     <Project Path="SaraBank.API/SaraBank.API.csproj" />

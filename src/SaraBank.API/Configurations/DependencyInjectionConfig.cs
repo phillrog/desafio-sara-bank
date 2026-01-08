@@ -1,7 +1,7 @@
 ﻿using FluentValidation;
 using Google.Cloud.Firestore;
 using Google.Cloud.PubSub.V1;
-using SaraBank.Application.Handlers;
+using SaraBank.Application.Handlers.Commands;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Infrastructure.Persistence;

@@ -22,9 +22,9 @@ public class OutboxWorkerTests
         const string payloadEsperado = "{\"valor\": 500.00, \"moeda\": \"BRL\"}";
 
         // uma mensagem pendente no "banco"
-        var mensagensPendentes = new List<OutboxMessage>
+        var mensagensPendentes = new List<OutboxMessageDTO>
         {
-            new OutboxMessage(mensagemId, payloadEsperado, "TransferenciaRealizada")
+            new OutboxMessageDTO(mensagemId, payloadEsperado, "TransferenciaRealizada")
         };
 
         mockRepo
@@ -75,7 +75,7 @@ public class OutboxWorkerTests
         var mockScopeFactory = new Mock<IServiceScopeFactory>();
 
         mockRepo.Setup(r => r.ObterNaoProcessadosAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new List<OutboxMessage> { new OutboxMessage("1", "{}", "Tipo") });
+                .ReturnsAsync(new List<OutboxMessageDTO> { new OutboxMessageDTO("1", "{}", "Tipo") });
 
         // Simular falha perpétua
         mockPublisher.Setup(p => p.PublicarAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -100,7 +100,7 @@ public class OutboxWorkerTests
         var mockScopeFactory = new Mock<IServiceScopeFactory>();
 
         mockRepo.Setup(r => r.ObterNaoProcessadosAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new List<OutboxMessage> { new OutboxMessage("1", "{}", "Tipo") });
+                .ReturnsAsync(new List<OutboxMessageDTO> { new OutboxMessageDTO("1", "{}", "Tipo") });
 
         // Simula que o Pub/Sub está fora do ar permanentemente
         mockPublisher

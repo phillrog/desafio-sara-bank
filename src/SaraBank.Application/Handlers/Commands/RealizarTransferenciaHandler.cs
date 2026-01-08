@@ -5,7 +5,7 @@ using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using FluentValidation;
 
-namespace SaraBank.Application.Handlers;
+namespace SaraBank.Application.Handlers.Commands;
 
 public class RealizarTransferenciaHandler : IRequestHandler<RealizarTransferenciaCommand, bool>
 {

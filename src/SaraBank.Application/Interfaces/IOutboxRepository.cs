@@ -2,9 +2,10 @@
 {
     public interface IOutboxRepository
     {
-        Task<IEnumerable<OutboxMessage>> ObterNaoProcessadosAsync(int limite, CancellationToken ct);
+        Task<IEnumerable<OutboxMessageDTO>> ObterNaoProcessadosAsync(int limite, CancellationToken ct);
         Task MarcarComoProcessadoAsync(string id, CancellationToken ct);
+        Task AdicionarAsync(OutboxMessageDTO message, CancellationToken ct);
     }
 
-    public record OutboxMessage(string Id, string Payload, string Tipo);
+    public record OutboxMessageDTO(string Id, string Payload, string Tipo);
 }

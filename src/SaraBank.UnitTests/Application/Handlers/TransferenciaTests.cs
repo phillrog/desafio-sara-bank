@@ -4,10 +4,10 @@ using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;
 using SaraBank.Domain.Entities;
-using SaraBank.Application.Handlers;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Interfaces;
+using SaraBank.Application.Handlers.Commands;
 
 namespace SaraBank.UnitTests.Application.Handlers;
 
