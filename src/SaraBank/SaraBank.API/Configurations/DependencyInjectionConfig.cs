@@ -10,37 +10,39 @@ using SaraBank.Infrastructure.Workers;
 
 namespace SaraBank.API.Configurations
 {
-
     public static class DependencyInjectionConfig
     {
         public static IServiceCollection AddDependencyInjection(this IServiceCollection services, IConfiguration configuration)
         {
             var projectId = configuration["Firestore:ProjectId"];
 
-            // Banco
+            // --- Banco de Dados ---
             services.AddSingleton(sp => FirestoreDb.Create(projectId));
 
-            // Persistência (Scoped para transações por requisição)
+            // --- Persistência e Transação ---
             services.AddScoped<IUnitOfWork, FirestoreUnitOfWork>();
+
+            // Repositórios
+            services.AddScoped<IUsuarioRepository, UsuarioRepository>();
             services.AddScoped<IContaRepository, ContaRepository>();
+            services.AddScoped<IMovimentacaoRepository, MovimentacaoRepository>();
             services.AddScoped<IOutboxRepository, FirestoreOutboxRepository>();
 
-            // MediatR e FluentValidation
+            // --- MediaTr e Validação ---
             services.AddMediatR(cfg => {
                 cfg.RegisterServicesFromAssembly(typeof(RealizarTransferenciaHandler).Assembly);
             });
             services.AddValidatorsFromAssembly(typeof(RealizarTransferenciaHandler).Assembly);
 
-            // Mensageria (PublisherClient deve ser Singleton)
+            // --- Mensageria (Pub/Sub) ---
             services.AddSingleton(sp => {
                 var topicName = TopicName.FromProjectTopic(projectId, "sara-bank-eventos");
                 return PublisherClient.Create(topicName);
             });
 
-            // Wrapper do Publisher
             services.AddSingleton<IPublisher, SaraBank.Infrastructure.Services.Publisher>();
 
-            // Workers
+            // --- Background Services (Workers) ---
             services.AddHostedService<OutboxWorker>();
 
             return services;

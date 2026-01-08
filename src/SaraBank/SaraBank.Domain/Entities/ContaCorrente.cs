@@ -1,9 +1,15 @@
-﻿namespace SaraBank.Domain.Entities
+﻿using Google.Cloud.Firestore;
+
+namespace SaraBank.Domain.Entities
 {
+    [FirestoreData]
     public class ContaCorrente
     {
+        [FirestoreDocumentId]
         public string Id { get; private set; }
+        [FirestoreProperty]
         public Guid UsuarioId { get; private set; }
+        [FirestoreProperty]
         public decimal Saldo { get; private set; }
 
         public ContaCorrente(Guid usuarioId, decimal saldoInicial = 0)
@@ -24,6 +30,21 @@
             if (valor <= 0) throw new ArgumentException("O valor do saque deve ser positivo.");
             if (Saldo < valor) throw new InvalidOperationException("Saldo insuficiente.");
             Saldo -= valor;
+        }
+
+        public void Debitar(decimal valor)
+        {
+            if (valor <= 0) throw new ArgumentException("O valor do débito deve ser positivo.");
+            if (Saldo < valor) throw new InvalidOperationException("Saldo insuficiente.");
+
+            Saldo -= valor;
+        }
+
+        public void Creditar(decimal valor)
+        {
+            if (valor <= 0) throw new ArgumentException("O valor do crédito deve ser positivo.");
+
+            Saldo += valor;
         }
     }
 }

@@ -1,60 +1,109 @@
 ﻿using Google.Cloud.Firestore;
+using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Infrastructure.Persistence;
 
-namespace SaraBank.Infrastructure.Repositories
+namespace SaraBank.Infrastructure.Repositories;
+
+public class ContaRepository : IContaRepository
 {
-    public class ContaRepository : RepositoryBase, IContaRepository
+    private readonly FirestoreDb _db;
+    private readonly IUnitOfWork _uow;
+    private const string NomeColecao = "Contas";
+    private const string NomeColecaoIdempotencia = "Idempotencia";
+    private FirestoreUnitOfWork? UnitOfWorkFirestore => _uow as FirestoreUnitOfWork;
+
+    public ContaRepository(FirestoreDb db, IUnitOfWork uow)
     {
-        public ContaRepository(IUnitOfWork uow, FirestoreDb db) : base(uow, db) { }
+        _db = db;
+        _uow = uow;
+    }
+    
 
-        public async Task<ContaCorrente> ObterPorIdAsync(string id)
+    public async Task AdicionarAsync(ContaCorrente conta)
+    {
+        var docRef = _db.Collection(NomeColecao).Document(conta.Id.ToString());
+
+        if (UnitOfWorkFirestore?.TransacaoAtual != null)
         {
-            var docRef = _db.Collection("Contas").Document(id);
-
-            DocumentSnapshot snapshot = _uow.TransacaoAtual != null
-                ? await _uow.TransacaoAtual.GetSnapshotAsync(docRef)
-                : await docRef.GetSnapshotAsync();
-
-            if (!snapshot.Exists) throw new Exception("Conta não encontrada.");
-
-            return new ContaCorrente(
-                snapshot.GetValue<Guid>("UsuarioId"),
-                snapshot.GetValue<decimal>("Saldo")
-            );
+            UnitOfWorkFirestore.TransacaoAtual.Set(docRef, conta);
+            await Task.CompletedTask;
         }
-
-        public async Task AtualizarAsync(ContaCorrente conta)
+        else
         {
-            var docRef = _db.Collection("Contas").Document(conta.Id);
-            var dados = new Dictionary<string, object> { { "Saldo", conta.Saldo } };
-
-            if (_uow.TransacaoAtual != null)
-                _uow.TransacaoAtual.Update(docRef, dados);
-            else
-                await docRef.UpdateAsync(dados);
+            await docRef.SetAsync(conta);
         }
+    }
 
-        public async Task<bool> VerificarIdempotenciaAsync(Guid chave)
+    public async Task<ContaCorrente> ObterPorIdAsync(string id)
+    {
+        var docRef = _db.Collection(NomeColecao).Document(id);
+
+        DocumentSnapshot snapshot = UnitOfWorkFirestore?.TransacaoAtual != null
+            ? await UnitOfWorkFirestore.TransacaoAtual.GetSnapshotAsync(docRef)
+            : await docRef.GetSnapshotAsync();
+
+        if (!snapshot.Exists)
+            throw new Exception("Conta corrente não encontrada no SARA Bank.");
+
+        return snapshot.ConvertTo<ContaCorrente>();
+    }
+
+    public async Task<ContaCorrente?> ObterPorUsuarioIdAsync(Guid usuarioId)
+    {        
+        var query = _db.Collection(NomeColecao).WhereEqualTo("UsuarioId", usuarioId.ToString()).Limit(1);
+
+        var snapshot = (UnitOfWorkFirestore?.TransacaoAtual != null)
+            ? await UnitOfWorkFirestore.TransacaoAtual.GetSnapshotAsync(query)
+            : await query.GetSnapshotAsync();
+
+        if (snapshot.Documents.Count == 0) return null;
+
+        return snapshot.Documents[0].ConvertTo<ContaCorrente>();
+    }
+
+    public async Task AtualizarAsync(ContaCorrente conta)
+    {
+        var docRef = _db.Collection(NomeColecao).Document(conta.Id.ToString());
+
+        if (UnitOfWorkFirestore?.TransacaoAtual != null)
         {
-            var docRef = _db.Collection("Idempotencia").Document(chave.ToString());
-            var snapshot = _uow.TransacaoAtual != null
-                ? await _uow.TransacaoAtual.GetSnapshotAsync(docRef)
-                : await docRef.GetSnapshotAsync();
-
-            return snapshot.Exists;
+            UnitOfWorkFirestore.TransacaoAtual.Set(docRef, conta);
         }
-
-        public async Task RegistrarChaveIdempotenciaAsync(Guid chave)
+        else
         {
-            var docRef = _db.Collection("Idempotencia").Document(chave.ToString());
-            var dados = new { DataProcessamento = Timestamp.GetCurrentTimestamp() };
+            await docRef.SetAsync(conta);
+        }
+    }
 
-            if (_uow.TransacaoAtual != null)
-                _uow.TransacaoAtual.Create(docRef, dados);
-            else
-                await docRef.CreateAsync(dados);
+    public async Task<bool> VerificarIdempotenciaAsync(Guid chave)
+    {
+        var docRef = _db.Collection(NomeColecaoIdempotencia).Document(chave.ToString());
+
+        var snapshot = UnitOfWorkFirestore?.TransacaoAtual != null
+            ? await UnitOfWorkFirestore.TransacaoAtual.GetSnapshotAsync(docRef)
+            : await docRef.GetSnapshotAsync();
+
+        return snapshot.Exists;
+    }
+
+    public async Task RegistrarChaveIdempotenciaAsync(Guid chave)
+    {
+        var docRef = _db.Collection(NomeColecaoIdempotencia).Document(chave.ToString());
+        var dados = new
+        {
+            DataProcessamento = Timestamp.GetCurrentTimestamp(),
+            Descricao = "Operação processada com sucesso"
+        };
+
+        if (UnitOfWorkFirestore?.TransacaoAtual != null)
+        {
+            UnitOfWorkFirestore.TransacaoAtual.Create(docRef, dados);
+        }
+        else
+        {
+            await docRef.CreateAsync(dados);
         }
     }
 }

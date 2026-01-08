@@ -1,5 +1,5 @@
 ﻿using Google.Cloud.Firestore;
-using SaraBank.Infrastructure.Persistence;
+using SaraBank.Application.Interfaces;
 
 namespace SaraBank.Infrastructure.Repositories;
 
