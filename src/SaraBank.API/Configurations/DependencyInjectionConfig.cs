@@ -1,6 +1,8 @@
 ﻿using FluentValidation;
 using Google.Cloud.Firestore;
 using Google.Cloud.PubSub.V1;
+using MediatR;
+using SaraBank.Application.Behaviors;
 using SaraBank.Application.Handlers.Commands;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Interfaces;
@@ -9,6 +11,7 @@ using SaraBank.Infrastructure.Persistence.Converters;
 using SaraBank.Infrastructure.Repositories;
 using SaraBank.Infrastructure.Services;
 using SaraBank.Infrastructure.Workers;
+using System.Reflection;
 
 namespace SaraBank.API.Configurations;
 
@@ -51,7 +54,7 @@ public static class DependencyInjectionConfig
         });
 
         // Interface que encapsula o PublisherClient do Google
-        services.AddSingleton<IPublisher, SaraBank.Infrastructure.Services.Publisher>();
+        services.AddSingleton<SaraBank.Application.Interfaces.IPublisher, SaraBank.Infrastructure.Services.Publisher>();
 
         // ---  PERSISTÊNCIA E TRANSAÇÃO (SCOPED) ---
         services.AddScoped<IUnitOfWork, FirestoreUnitOfWork>();
@@ -63,11 +66,16 @@ public static class DependencyInjectionConfig
         services.AddScoped<IOutboxRepository, FirestoreOutboxRepository>();
 
         // --- MEDIATR E VALIDAÇÃO ---
-        services.AddMediatR(cfg => {
-            cfg.RegisterServicesFromAssembly(typeof(CriarMovimentacaoHandler).Assembly);
-        });
+        // Registra todos os Validators do FluentValidation que estão no Assembly
+        services.AddValidatorsFromAssembly(AppDomain.CurrentDomain.Load("SaraBank.Application"));
 
-        services.AddValidatorsFromAssembly(typeof(CriarMovimentacaoHandler).Assembly);
+        // Registra o Behavior no MediatR
+        services.AddMediatR(cfg => {
+            cfg.RegisterServicesFromAssembly(AppDomain.CurrentDomain.Load("SaraBank.Application"));
+
+            // Adiciona o behavior de validação na fila do pipeline
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        });
 
         // --- BACKGROUND SERVICES (WORKERS) ---
         // O OutboxWorker envia para o Pub/Sub, o PubSubConsumerService recebe do Pub/Sub

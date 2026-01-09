@@ -13,25 +13,19 @@ public class CriarMovimentacaoHandler : IRequestHandler<CriarMovimentacaoCommand
     private readonly IContaRepository _contaRepository;
     private readonly IOutboxRepository _outboxRepository;
     private readonly IUnitOfWork _uow;
-    private readonly IValidator<CriarMovimentacaoCommand> _validator;
 
     public CriarMovimentacaoHandler(
         IContaRepository contaRepository,
         IOutboxRepository outboxRepository,
-        IUnitOfWork uow,
-        IValidator<CriarMovimentacaoCommand> validator)
+        IUnitOfWork uow)
     {
         _contaRepository = contaRepository;
         _outboxRepository = outboxRepository;
         _uow = uow;
-        _validator = validator;
     }
 
     public async Task<bool> Handle(CriarMovimentacaoCommand request, CancellationToken ct)
     {
-        var validationResult = await _validator.ValidateAsync(request, ct);
-        if (!validationResult.IsValid) throw new ValidationException(validationResult.Errors);
-
         return await _uow.ExecutarAsync(async () =>
         {
             // Busca a conta

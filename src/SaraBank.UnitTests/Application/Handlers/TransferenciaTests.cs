@@ -16,7 +16,6 @@ public class RealizarTransferenciaTests
     private readonly Mock<IContaRepository> _mockContaRepo;
     private readonly Mock<IMovimentacaoRepository> _mockMovimentacaoRepo;
     private readonly Mock<IUnitOfWork> _mockUow;
-    private readonly Mock<IValidator<RealizarTransferenciaCommand>> _mockValidator;
     private readonly RealizarTransferenciaHandler _handler;
 
     public RealizarTransferenciaTests()
@@ -24,7 +23,6 @@ public class RealizarTransferenciaTests
         _mockContaRepo = new Mock<IContaRepository>();
         _mockMovimentacaoRepo = new Mock<IMovimentacaoRepository>();
         _mockUow = new Mock<IUnitOfWork>();
-        _mockValidator = new Mock<IValidator<RealizarTransferenciaCommand>>();
 
         _mockUow.Setup(u => u.ExecutarAsync(It.IsAny<Func<Task<bool>>>()))
                 .Returns(async (Func<Task<bool>> acao) => await acao());
@@ -32,8 +30,7 @@ public class RealizarTransferenciaTests
         _handler = new RealizarTransferenciaHandler(
             _mockContaRepo.Object,
             _mockMovimentacaoRepo.Object,
-            _mockUow.Object,
-            _mockValidator.Object);
+            _mockUow.Object);
     }
 
     [Fact]
@@ -43,10 +40,7 @@ public class RealizarTransferenciaTests
         var contaOrigem = new ContaCorrente(Guid.NewGuid(), 500m);
         var contaDestino = new ContaCorrente(Guid.NewGuid(), 100m);
 
-        var command = new RealizarTransferenciaCommand(contaOrigem.Id, contaDestino.Id, 200m);
-
-        _mockValidator.Setup(v => v.ValidateAsync(command, It.IsAny<CancellationToken>()))
-                      .ReturnsAsync(new ValidationResult());
+        var command = new RealizarTransferenciaCommand(contaOrigem.Id, contaDestino.Id, 200m);        
 
         _mockContaRepo.Setup(r => r.ObterPorIdAsync(contaOrigem.Id)).ReturnsAsync(contaOrigem);
         _mockContaRepo.Setup(r => r.ObterPorIdAsync(contaDestino.Id)).ReturnsAsync(contaDestino);
@@ -62,22 +56,5 @@ public class RealizarTransferenciaTests
         // Verifica persistência
         _mockContaRepo.Verify(r => r.AtualizarAsync(It.IsAny<ContaCorrente>()), Times.Exactly(2));
         _mockMovimentacaoRepo.Verify(r => r.AdicionarAsync(It.IsAny<Movimentacao>()), Times.Exactly(2));
-    }
-
-    [Fact]
-    public async Task Deve_Falhar_Quando_Validacao_Do_FluentValidation_Retornar_Erro()
-    {
-        // Arrange
-        var command = new RealizarTransferenciaCommand(It.IsAny<Guid>(), It.IsAny<Guid>(), -50m);
-        var failure = new ValidationFailure("Valor", "O valor não pode ser negativo");
-
-        _mockValidator.Setup(v => v.ValidateAsync(command, It.IsAny<CancellationToken>()))
-                      .ReturnsAsync(new ValidationResult(new[] { failure }));
-
-        // Act & Assert
-        await Assert.ThrowsAsync<ValidationException>(() => _handler.Handle(command, CancellationToken.None));
-
-        // Verifica se a transação sequer foi aberta
-        _mockUow.Verify(u => u.ExecutarAsync(It.IsAny<Func<Task<bool>>>()), Times.Never);
-    }
+    }    
 }

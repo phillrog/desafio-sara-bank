@@ -1,8 +1,11 @@
-﻿using MediatR;
+﻿using FluentValidation;
+using FluentValidation.Results;
+using MediatR;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
+using System.Text.Json;
 
 namespace SaraBank.Application.Handlers.Commands;
 
@@ -27,27 +30,30 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
         var usuarioExistente = await _usuarioRepository.ObterPorCPFAsync(request.CPF);
         if (usuarioExistente != null)
         {
-            throw new InvalidOperationException("Já existe um usuário cadastrado com este CPF no SARA Bank.");
+            throw new ValidationException(new[] {new ValidationFailure("CPF", "Este CPF já está cadastrado no SARA Bank.")});
         }
 
         return await _uow.ExecutarAsync(async () =>
         {
             var novoUsuario = new Usuario(request.Nome, request.CPF, request.Email);
-
             await _usuarioRepository.AdicionarAsync(novoUsuario);
 
             var novaConta = new ContaCorrente(novoUsuario.Id, request.SaldoInicial);
-
             await _contaRepository.AdicionarAsync(novaConta);
-            
-            var payload = $@"{{
-                ""UsuarioId"": ""{novoUsuario.Id}"",
-                ""Nome"": ""{novoUsuario.Nome}"",
-                ""Email"": ""{novoUsuario.Email}"",
-                ""ContaId"": ""{novaConta.Id}"",
-                ""DataCriacao"": ""{DateTime.UtcNow:o}""
-            }}";
 
+            var evento = new
+            {
+                UsuarioId = novoUsuario.Id,
+                novoUsuario.Nome,
+                novoUsuario.Email,
+                ContaId = novaConta.Id,
+                DataCriacao = DateTime.UtcNow
+            };
+
+            var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            var payload = JsonSerializer.Serialize(evento, options);
+
+            // Persistência Atômica no Outbox
             await _uow.AdicionarAoOutboxAsync(payload, "UsuarioCadastrado");
 
             return novoUsuario.Id.ToString();

@@ -12,25 +12,19 @@ public class RealizarTransferenciaHandler : IRequestHandler<RealizarTransferenci
     private readonly IContaRepository _contaRepository;
     private readonly IMovimentacaoRepository _movimentacaoRepository; // Adicionado
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IValidator<RealizarTransferenciaCommand> _validator;
 
     public RealizarTransferenciaHandler(
         IContaRepository contaRepository,
         IMovimentacaoRepository movimentacaoRepository,
-        IUnitOfWork unitOfWork,
-        IValidator<RealizarTransferenciaCommand> validator)
+        IUnitOfWork unitOfWork)
     {
         _contaRepository = contaRepository;
         _movimentacaoRepository = movimentacaoRepository;
         _unitOfWork = unitOfWork;
-        _validator = validator;
     }
 
     public async Task<bool> Handle(RealizarTransferenciaCommand request, CancellationToken ct)
-    {
-        var validationResult = await _validator.ValidateAsync(request, ct);
-        if (!validationResult.IsValid) throw new ValidationException(validationResult.Errors);
-
+    {        
         return await _unitOfWork.ExecutarAsync(async () =>
         {
             var origem = await _contaRepository.ObterPorIdAsync(request.ContaOrigemId);

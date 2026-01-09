@@ -62,7 +62,7 @@ public class CadastroUsuarioTests
     public async Task Nao_Deve_Cadastrar_Usuario_Se_CPF_Ja_Existir()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Beltrano", "12345678901", "beltrano@email.com");
+        var command = new CadastrarUsuarioCommand("Beltrano", "51666431001", "beltrano@email.com", 100);
         var usuarioExistente = new Usuario(command.Nome, command.CPF, command.Email);
 
         _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
@@ -71,10 +71,10 @@ public class CadastroUsuarioTests
         // Act & Assert
         var acao = () => _handler.Handle(command, CancellationToken.None);
 
-        await acao.Should().ThrowAsync<InvalidOperationException>()
-                  .WithMessage("Já existe um usuário cadastrado com este CPF no SARA Bank.");
+        await acao.Should().ThrowAsync<FluentValidation.ValidationException>()
+                  .Where(e => e.Errors.Any(f => f.ErrorMessage.Contains("Este CPF já está cadastrado")));
 
-        // Garante que nem tentou abrir conta ou salvar usuário novo
+        // Garante que a transação sequer foi aberta e nenhum dado foi persistido
         _mockUsuarioRepo.Verify(r => r.AdicionarAsync(It.IsAny<Usuario>()), Times.Never);
         _mockUow.Verify(u => u.ExecutarAsync(It.IsAny<Func<Task<string>>>()), Times.Never);
     }

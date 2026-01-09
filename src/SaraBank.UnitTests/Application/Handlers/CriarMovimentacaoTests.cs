@@ -13,7 +13,6 @@ public class CriarMovimentacaoTests
     private readonly Mock<IContaRepository> _contaRepoMock;
     private readonly Mock<IOutboxRepository> _outboxRepoMock;
     private readonly Mock<IUnitOfWork> _uowMock;
-    private readonly Mock<IValidator<CriarMovimentacaoCommand>> _validator;
     private readonly CriarMovimentacaoHandler _handler;
 
     public CriarMovimentacaoTests()
@@ -21,7 +20,6 @@ public class CriarMovimentacaoTests
         _contaRepoMock = new Mock<IContaRepository>();
         _outboxRepoMock = new Mock<IOutboxRepository>();
         _uowMock = new Mock<IUnitOfWork>();
-        _validator = new Mock<IValidator<CriarMovimentacaoCommand>>();
 
         _uowMock.Setup(x => x.ExecutarAsync(It.IsAny<Func<Task<bool>>>()))
             .Returns((Func<Task<bool>> func) => func());
@@ -29,8 +27,7 @@ public class CriarMovimentacaoTests
         _handler = new CriarMovimentacaoHandler(
             _contaRepoMock.Object,
             _outboxRepoMock.Object,
-            _uowMock.Object,
-            _validator.Object);
+            _uowMock.Object);
     }
 
     [Fact]
@@ -48,8 +45,6 @@ public class CriarMovimentacaoTests
 
         _contaRepoMock.Setup(x => x.ObterPorIdAsync(contaId))
                       .ReturnsAsync(conta);
-        _validator.Setup(x => x.ValidateAsync(command, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(new FluentValidation.Results.ValidationResult());
 
         // Act
         var resultado = await _handler.Handle(command, CancellationToken.None);
@@ -75,9 +70,7 @@ public class CriarMovimentacaoTests
         var command = new CriarMovimentacaoCommand(It.IsAny<Guid>(), 50m, "Deposito");
         _contaRepoMock.Setup(x => x.ObterPorIdAsync(It.IsAny<Guid>()))
                       .ReturnsAsync((ContaCorrente)null);
-
-        _validator.Setup(x => x.ValidateAsync(command, It.IsAny<CancellationToken>()))
-                  .ReturnsAsync(new FluentValidation.Results.ValidationResult());
+        
 
         // Act
         var resultado = await _handler.Handle(command, CancellationToken.None);

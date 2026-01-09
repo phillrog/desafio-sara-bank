@@ -1,4 +1,5 @@
 ﻿using SaraBank.API.Configurations;
+using SaraBank.API.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +29,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Exception Handling Middleware
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.MapControllers();
 
