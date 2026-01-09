@@ -16,26 +16,26 @@ public class MovimentacaoController : ControllerBase
         _mediator = mediator;
     }
 
-    [HttpPost("deposito")]
-    public async Task<IActionResult> RealizarDeposito([FromBody] SolicitarMovimentacaoRequest request)
+    [HttpPost("creditar")]
+    public async Task<IActionResult> RealizarCredito([FromBody] SolicitarMovimentacaoRequest request)
     {
-        var command = new SolicitarMovimentacaoCommand(request.ContaId, request.Valor, "Deposito");
+        var command = new SolicitarMovimentacaoCommand(request.ContaId, request.Valor, "Credito");
         var resultado = await _mediator.Send(command);
 
         if (resultado)
-            return Accepted(new { mensagem = "Solicitação de depósito enviada para processamento." });
+            return Accepted(new { mensagem = "Solicitação de crédito enviada para processamento." });
 
         return BadRequest();
     }
 
-    [HttpPost("saque")]
-    public async Task<IActionResult> RealizarSaque([FromBody] SolicitarMovimentacaoRequest request)
+    [HttpPost("debitar")]
+    public async Task<IActionResult> RealizarDebito([FromBody] SolicitarMovimentacaoRequest request)
     {
-        var command = new SolicitarMovimentacaoCommand(request.ContaId, request.Valor, "Saque");
+        var command = new SolicitarMovimentacaoCommand(request.ContaId, request.Valor, "Debito");
         var resultado = await _mediator.Send(command);
 
         if (resultado)
-            return Accepted(new { mensagem = "Solicitação de saque enviada para processamento." });
+            return Accepted(new { mensagem = "Solicitação de débito enviada para processamento." });
 
         return BadRequest();
     }

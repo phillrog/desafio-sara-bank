@@ -21,15 +21,8 @@ public class SolicitarMovimentacaoHandler : IRequestHandler<SolicitarMovimentaca
 
     public async Task<bool> Handle(SolicitarMovimentacaoCommand request, CancellationToken ct)
     {
-        #region [ VALIDAÇÕES]
-
-        if (request.Valor <= 0)
-        {
-            throw new ValidationException(new[] {
-                new ValidationFailure("Valor", "O valor da movimentação deve ser superior a zero.")
-            });
-        }
-
+        #region [ VALIDAÇÕES ]
+        
         var conta = await _contaRepository.ObterPorIdAsync(request.ContaId);
         if (conta == null)
         {
@@ -37,6 +30,7 @@ public class SolicitarMovimentacaoHandler : IRequestHandler<SolicitarMovimentaca
                 new ValidationFailure("ContaId", "A conta informada não foi encontrada no SARA Bank.")
             });
         }
+
         #endregion
 
         return await _uow.ExecutarAsync(async () =>

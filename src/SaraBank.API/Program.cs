@@ -15,6 +15,7 @@ builder.Services.AddEndpointsApiExplorer();
 
 // Swagger
 builder.Services.AddSwaggerGen();
+builder.Services.AddCustomizedSwagger(typeof(Program));
 
 // Dependency Injection Configuration
 builder.Services.AddDependencyInjection(builder.Configuration);
@@ -27,6 +28,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseCustomizedSwagger();
 
 app.UseHttpsRedirection();
 

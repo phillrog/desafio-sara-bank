@@ -40,18 +40,18 @@ public class CriarMovimentacaoTests
     }
 
     [Fact]
-    public async Task Deve_Creditar_Valor_Na_Conta_E_Publicar_Evento_Quando_Deposito_For_Valido()
+    public async Task Deve_Creditar_Valor_Na_Conta_E_Publicar_Evento_Quando_Credito_For_Valido()
     {
         // Arrange
         var usuarioId = Guid.NewGuid();
         var contaId = Guid.NewGuid();
         var saldoInicial = 100m;
-        var valorDeposito = 50m;
+        var valorCredito = 50m;
 
         // Assumindo que sua entidade é 'Conta' conforme o Handler anterior
         var conta = new ContaCorrente(contaId, usuarioId, saldoInicial);
 
-        var command = new CriarMovimentacaoCommand(contaId, valorDeposito, "Deposito");
+        var command = new CriarMovimentacaoCommand(contaId, valorCredito, "Credito");
 
         _contaRepoMock.Setup(x => x.ObterPorIdAsync(contaId))
                       .ReturnsAsync(conta);
@@ -68,7 +68,7 @@ public class CriarMovimentacaoTests
 
         // VERIFICAÇÃO DO MEDIATOR: Garante que o evento de domínio foi disparado internamente
         _mediatorMock.Verify(x => x.Publish(
-            It.Is<MovimentacaoRealizadaEvent>(e => e.ContaId == contaId && e.Valor == valorDeposito),
+            It.Is<MovimentacaoRealizadaEvent>(e => e.ContaId == contaId && e.Valor == valorCredito),
             It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -77,7 +77,7 @@ public class CriarMovimentacaoTests
     public async Task Deve_Retornar_False_Quando_Conta_Nao_Existir()
     {
         // Arrange
-        var command = new CriarMovimentacaoCommand(Guid.NewGuid(), 50m, "Deposito");
+        var command = new CriarMovimentacaoCommand(Guid.NewGuid(), 50m, "Credito");
         _contaRepoMock.Setup(x => x.ObterPorIdAsync(It.IsAny<Guid>()))
                       .ReturnsAsync((ContaCorrente)null!);
 
@@ -92,16 +92,16 @@ public class CriarMovimentacaoTests
     }
 
     [Fact]
-    public async Task Deve_Creditar_Valor_Na_Conta_E_Gerar_Movimentacao_E_Publicar_Evento_Quando_Deposito_For_Valido()
+    public async Task Deve_Creditar_Valor_Na_Conta_E_Gerar_Movimentacao_E_Publicar_Evento_Quando_Credito_For_Valido()
     {
         // Arrange
         var usuarioId = Guid.NewGuid();
         var contaId = Guid.NewGuid();
         var saldoInicial = 100m;
-        var valorDeposito = 50m;
+        var valorCredito = 50m;
 
         var conta = new ContaCorrente(contaId, usuarioId, saldoInicial);
-        var command = new CriarMovimentacaoCommand(contaId, valorDeposito, "Deposito");
+        var command = new CriarMovimentacaoCommand(contaId, valorCredito, "Credito");
 
         _contaRepoMock.Setup(x => x.ObterPorIdAsync(contaId))
                       .ReturnsAsync(conta);
@@ -118,7 +118,7 @@ public class CriarMovimentacaoTests
 
         // Verifica se a movimentação física (extrato) foi gravada
         _movimentacaoRepository.Verify(x => x.AdicionarAsync(
-            It.Is<Movimentacao>(m => m.ContaId == contaId && m.Valor == valorDeposito && m.Tipo == "Deposito")),
+            It.Is<Movimentacao>(m => m.ContaId == contaId && m.Valor == valorCredito && m.Tipo == "Credito")),
             Times.Once);
 
         // Verifica se o evento de domínio foi publicado

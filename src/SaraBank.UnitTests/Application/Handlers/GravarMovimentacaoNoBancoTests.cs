@@ -21,7 +21,7 @@ public class GravarMovimentacaoNoBancoHandlerTests
         // Arrange
         var contaId = Guid.NewGuid();
         var valor = 250.50m;
-        var tipo = "Deposito";
+        var tipo = "Credito";
         var descricao = "Saldo Inicial";
 
         var evento = new NovaMovimentacaoEvent(contaId, valor, tipo, descricao);

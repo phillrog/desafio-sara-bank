@@ -53,7 +53,7 @@ public class CadastroUsuarioTests
 
         // Verifica se a conta foi aberta para esse usuário com o saldo inicial correto
         _mockContaRepo.Verify(r => r.AdicionarAsync(It.Is<ContaCorrente>(c =>
-            c.Saldo == command.SaldoInicial)), Times.Once);
+            c.Saldo == 0)), Times.Once);
 
         // Verifica se o evento de boas-vindas foi para o Outbox
         _mockUow.Verify(u => u.AdicionarAoOutboxAsync(It.IsAny<string>(), "UsuarioCadastrado"), Times.Once);

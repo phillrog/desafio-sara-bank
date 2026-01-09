@@ -35,7 +35,7 @@ namespace SaraBank.Domain.Entities
 
         public void Sacar(decimal valor)
         {
-            if (valor <= 0) throw new ArgumentException("O valor do saque deve ser positivo.");
+            if (valor <= 0) throw new ArgumentException("O valor do Debito deve ser positivo.");
             if (Saldo < valor) throw new InvalidOperationException("Saldo insuficiente.");
             Saldo -= valor;
         }

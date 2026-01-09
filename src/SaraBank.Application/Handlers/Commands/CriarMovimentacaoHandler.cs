@@ -39,7 +39,7 @@ public class CriarMovimentacaoHandler : IRequestHandler<CriarMovimentacaoCommand
             if (conta == null) return false;
 
             // Valida operação
-            if (request.Tipo.Equals("Deposito", StringComparison.OrdinalIgnoreCase))
+            if (request.Tipo.Equals("Credito", StringComparison.OrdinalIgnoreCase))
                 conta.Creditar(request.Valor);
             else
                 conta.Debitar(request.Valor);

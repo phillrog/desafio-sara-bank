@@ -27,7 +27,7 @@ namespace SaraBank.UnitTests.Domain
         }
 
         [Fact]
-        public void Nao_Deve_Permitir_Saque_Se_Saldo_For_Insuficiente()
+        public void Nao_Deve_Permitir_Debito_Se_Saldo_For_Insuficiente()
         {
             // Arrange
             var conta = new ContaCorrente(Guid.NewGuid(), 100m);

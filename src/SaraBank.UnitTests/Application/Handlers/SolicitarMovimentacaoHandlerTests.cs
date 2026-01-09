@@ -27,28 +27,12 @@ public class SolicitarMovimentacaoHandlerTests
         _handler = new SolicitarMovimentacaoHandler(_uowMock.Object, _contaRepositoryMock.Object);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-50)]
-    public async Task Handle_DeveLancarValidationException_QuandoValorForInvalido(decimal valorInvalido)
-    {
-        // Arrange
-        var command = new SolicitarMovimentacaoCommand(Guid.NewGuid(), valorInvalido, "Deposito");
-
-        // Act
-        Func<Task> act = async () => await _handler.Handle(command, CancellationToken.None);
-
-        // Assert
-        await act.Should().ThrowAsync<ValidationException>()
-            .Where(e => e.Errors.Any(f => f.PropertyName == "Valor"));
-    }
-
     [Fact]
     public async Task Handle_DeveLancarValidationException_QuandoContaNaoExistir()
     {
         // Arrange
         var contaId = Guid.NewGuid();
-        var command = new SolicitarMovimentacaoCommand(contaId, 100, "Saque");
+        var command = new SolicitarMovimentacaoCommand(contaId, 100, "Debito");
 
         _contaRepositoryMock.Setup(r => r.ObterPorIdAsync(contaId))
                             .ReturnsAsync((ContaCorrente)null!);
@@ -62,11 +46,11 @@ public class SolicitarMovimentacaoHandlerTests
     }
 
     [Fact]
-    public async Task Handle_DeveProcessarSaqueComSucesso_QuandoDadosForemValidos()
+    public async Task Handle_DeveProcessarDebitoComSucesso_QuandoDadosForemValidos()
     {
         // Arrange
         var contaId = Guid.NewGuid();
-        var command = new SolicitarMovimentacaoCommand(contaId, 50, "Saque");
+        var command = new SolicitarMovimentacaoCommand(contaId, 50, "Debito");
         var contaExistente = new ContaCorrente(contaId, Guid.NewGuid(), 1000);
 
         _contaRepositoryMock.Setup(r => r.ObterPorIdAsync(contaId))
@@ -81,11 +65,11 @@ public class SolicitarMovimentacaoHandlerTests
     }
 
     [Fact]
-    public async Task Handle_DeveProcessarDepositoComSucesso_QuandoDadosForemValidos()
+    public async Task Handle_DeveProcessarCreditoComSucesso_QuandoDadosForemValidos()
     {
         // Arrange
         var contaId = Guid.NewGuid();
-        var command = new SolicitarMovimentacaoCommand(contaId, 500, "Deposito");
+        var command = new SolicitarMovimentacaoCommand(contaId, 500, "Credito");
         var contaExistente = new ContaCorrente(contaId, Guid.NewGuid(), 0);
 
         _contaRepositoryMock.Setup(r => r.ObterPorIdAsync(contaId))

@@ -19,7 +19,7 @@ public class ProcessarSaldoInicialHandler : INotificationHandler<UsuarioCadastra
             var evento = new NovaMovimentacaoEvent(
                 notification.ContaId,
                 notification.SaldoInicial,
-                "Deposito",
+                "Credito",
                 "Saldo Inicial de Abertura"
             );
 
