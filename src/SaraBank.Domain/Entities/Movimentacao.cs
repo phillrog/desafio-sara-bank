@@ -34,4 +34,14 @@ public class Movimentacao
         Descricao = descricao;
         Data = DateTime.UtcNow;
     }
+
+    public Movimentacao(Guid id, Guid contaId, decimal valor, string tipo, string descricao, DateTime data)
+    {
+        Id = id;
+        ContaId = contaId;
+        Valor = valor;
+        Tipo = tipo;
+        Descricao = descricao;
+        Data = data;
+    }
 }

@@ -2,6 +2,7 @@
 using FluentValidation.Results;
 using MediatR;
 using SaraBank.Application.Commands;
+using SaraBank.Application.Events;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
@@ -14,15 +15,18 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
     private readonly IUsuarioRepository _usuarioRepository;
     private readonly IContaRepository _contaRepository;
     private readonly IUnitOfWork _uow;
+    private readonly IMovimentacaoRepository _movimentacaoRepository;
 
     public CadastrarUsuarioHandler(
         IUsuarioRepository usuarioRepository,
         IContaRepository contaRepository,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IMovimentacaoRepository movimentacaoRepository)
     {
         _usuarioRepository = usuarioRepository;
         _contaRepository = contaRepository;
         _uow = uow;
+        _movimentacaoRepository = movimentacaoRepository;
     }
 
     public async Task<string> Handle(CadastrarUsuarioCommand request, CancellationToken ct)
@@ -51,10 +55,37 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
             };
 
             var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-            var payload = JsonSerializer.Serialize(evento, options);
 
+            var envelope = new
+            {
+                TipoEvento = "UsuarioCadastrado",
+                Payload = JsonSerializer.Serialize(evento, options)
+            };
+
+            var payload = JsonSerializer.Serialize(envelope, options);
+            
             // Persistência Atômica no Outbox
             await _uow.AdicionarAoOutboxAsync(payload, "UsuarioCadastrado");
+
+            if (request.SaldoInicial > 0)
+            {
+                var movimentacaoInicial = new Movimentacao(
+                    novaConta.Id,
+                    request.SaldoInicial,
+                    "Credito",
+                    "Depósito Inicial"
+                );
+
+                await _movimentacaoRepository.AdicionarAsync(movimentacaoInicial);
+
+                var envelopeMov = new
+                {
+                    TipoEvento = "MovimentacaoRealizada",
+                    Payload = JsonSerializer.Serialize(new MovimentacaoRealizadaEvent(novaConta.Id, request.SaldoInicial, "Depósito Inicial"), options)
+                };
+
+                await _uow.AdicionarAoOutboxAsync(JsonSerializer.Serialize(envelopeMov), "MovimentacaoRealizada");
+            }
 
             return novoUsuario.Id.ToString();
         });

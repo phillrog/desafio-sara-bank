@@ -64,6 +64,7 @@ public static class DependencyInjectionConfig
         services.AddScoped<IContaRepository, ContaRepository>();
         services.AddScoped<IMovimentacaoRepository, MovimentacaoRepository>();
         services.AddScoped<IOutboxRepository, FirestoreOutboxRepository>();
+        services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
 
         // --- MEDIATR E VALIDAÇÃO ---
         // Registra todos os Validators do FluentValidation que estão no Assembly
@@ -73,7 +74,10 @@ public static class DependencyInjectionConfig
         services.AddMediatR(cfg => {
             cfg.RegisterServicesFromAssembly(AppDomain.CurrentDomain.Load("SaraBank.Application"));
 
-            // Adiciona o behavior de validação na fila do pipeline
+            // Checa se é duplicado (Idempotência)
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(IdempotencyBehavior<,>));
+
+            // Valida os dados (Validation)
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         });
 

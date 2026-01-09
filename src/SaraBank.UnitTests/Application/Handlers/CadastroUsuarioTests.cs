@@ -1,11 +1,12 @@
-﻿using Moq;
-using Xunit;
-using FluentAssertions;
-using SaraBank.Domain.Entities;
+﻿using FluentAssertions;
+using Moq;
 using SaraBank.Application.Commands;
-using SaraBank.Application.Interfaces;
-using SaraBank.Domain.Interfaces;
 using SaraBank.Application.Handlers.Commands;
+using SaraBank.Application.Interfaces;
+using SaraBank.Domain.Entities;
+using SaraBank.Domain.Interfaces;
+using SaraBank.Infrastructure.Repositories;
+using Xunit;
 
 namespace SaraBank.UnitTests.Application.Handlers;
 
@@ -15,12 +16,14 @@ public class CadastroUsuarioTests
     private readonly Mock<IContaRepository> _mockContaRepo;
     private readonly Mock<IUnitOfWork> _mockUow;
     private readonly CadastrarUsuarioHandler _handler;
+    private readonly Mock<IMovimentacaoRepository> _movimentacaoRepository;
 
     public CadastroUsuarioTests()
     {
         _mockUsuarioRepo = new Mock<IUsuarioRepository>();
         _mockContaRepo = new Mock<IContaRepository>();
         _mockUow = new Mock<IUnitOfWork>();
+        _movimentacaoRepository = new Mock<IMovimentacaoRepository>();
 
         _mockUow.Setup(u => u.ExecutarAsync(It.IsAny<Func<Task<string>>>()))
                 .Returns(async (Func<Task<string>> acao) => await acao());
@@ -28,14 +31,15 @@ public class CadastroUsuarioTests
         _handler = new CadastrarUsuarioHandler(
             _mockUsuarioRepo.Object,
             _mockContaRepo.Object,
-            _mockUow.Object);
+            _mockUow.Object,
+            _movimentacaoRepository.Object);
     }
 
     [Fact]
     public async Task Deve_Criar_Usuario_E_Conta_Com_Sucesso()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Fulano de Tal", "12345678901", "fulano@email.com", 100m);
+        var command = new CadastrarUsuarioCommand("Fulano de Tal", "12345678901", "fulano@email.com", 100m, It.IsAny<Guid>());
 
         _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
                         .ReturnsAsync((Usuario?)null);
@@ -62,7 +66,7 @@ public class CadastroUsuarioTests
     public async Task Nao_Deve_Cadastrar_Usuario_Se_CPF_Ja_Existir()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Beltrano", "51666431001", "beltrano@email.com", 100);
+        var command = new CadastrarUsuarioCommand("Beltrano", "51666431001", "beltrano@email.com", 100, It.IsAny<Guid>());
         var usuarioExistente = new Usuario(command.Nome, command.CPF, command.Email);
 
         _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
@@ -77,5 +81,48 @@ public class CadastroUsuarioTests
         // Garante que a transação sequer foi aberta e nenhum dado foi persistido
         _mockUsuarioRepo.Verify(r => r.AdicionarAsync(It.IsAny<Usuario>()), Times.Never);
         _mockUow.Verify(u => u.ExecutarAsync(It.IsAny<Func<Task<string>>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Deve_Criar_Usuario_E_Conta_Com_Movimentacao_Inicial_Se_Saldo_Positivo()
+    {
+        // Arrange
+        var command = new CadastrarUsuarioCommand("Fulano de Tal", "51666431001", "fulano@email.com", 100m, Guid.NewGuid());
+
+        _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
+                        .ReturnsAsync((Usuario?)null);
+
+        // Act
+        var usuarioId = await _handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        usuarioId.Should().NotBeNullOrEmpty();
+        
+        _movimentacaoRepository.Verify(r => r.AdicionarAsync(It.Is<Movimentacao>(m =>
+            m.Valor == command.SaldoInicial &&
+            m.Descricao == "Depósito Inicial")), Times.Once);
+
+        _mockUow.Verify(u => u.AdicionarAoOutboxAsync(It.IsAny<string>(), "UsuarioCadastrado"), Times.Once);
+    }
+
+    [Fact]
+    public async Task Deve_Criar_Usuario_Sem_Gerar_Movimentacao_Se_Saldo_Inicial_For_Zero()
+    {
+        // Arrange
+        var command = new CadastrarUsuarioCommand("Cicrano", "51666431001", "cicrano@email.com", 0m, Guid.NewGuid());
+
+        _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
+                        .ReturnsAsync((Usuario?)null);
+
+        // Act
+        await _handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        // Verifica se Usuário e Conta foram criados
+        _mockUsuarioRepo.Verify(r => r.AdicionarAsync(It.IsAny<Usuario>()), Times.Once);
+        _mockContaRepo.Verify(r => r.AdicionarAsync(It.IsAny<ContaCorrente>()), Times.Once);
+
+        // GARANTE que a movimentação NÃO foi adicionada
+        _movimentacaoRepository.Verify(r => r.AdicionarAsync(It.IsAny<Movimentacao>()), Times.Never);
     }
 }

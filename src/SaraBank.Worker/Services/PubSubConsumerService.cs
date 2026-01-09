@@ -20,21 +20,29 @@ public class PubSubConsumerService : BackgroundService
     {
         await _subscriberClient.StartAsync(async (PubsubMessage message, CancellationToken ct) =>
         {
-            using (var scope = _serviceProvider.CreateScope())
+            using var scope = _serviceProvider.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+            string json = message.Data.ToStringUtf8();
+            var envelope = JsonSerializer.Deserialize<JsonElement>(json);
+
+            string tipo = envelope.GetProperty("TipoEvento").GetString();
+            string payload = envelope.GetProperty("Payload").GetString();
+
+            object eventoFinal = tipo switch
             {
-                var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                
-                string json = message.Data.ToStringUtf8();
+                "UsuarioCadastrado" => JsonSerializer.Deserialize<UsuarioCadastradoEvent>(payload),
+                "MovimentacaoRealizada" => JsonSerializer.Deserialize<MovimentacaoRealizadaEvent>(payload),
+                _ => null
+            };
 
-                var evento = JsonSerializer.Deserialize<MovimentacaoRealizadaEvent>(json);
-
-                if (evento != null)
-                {
-                    // Envia para o Handler (ProcessarNotificacaoMovimentacaoHandler)
-                    await mediator.Publish(evento, ct);
-                }
-                return SubscriberClient.Reply.Ack;
+            if (eventoFinal != null)
+            {
+                // Usamos Publish(object) para o MediatR encontrar o handler certo dinamicamente
+                await mediator.Publish(eventoFinal, ct);
             }
+
+            return SubscriberClient.Reply.Ack;
         });
     }
 }

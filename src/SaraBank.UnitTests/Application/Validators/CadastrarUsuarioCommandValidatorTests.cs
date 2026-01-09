@@ -1,4 +1,5 @@
 ﻿using FluentValidation.TestHelper;
+using Moq;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Validators;
 
@@ -17,7 +18,7 @@ public class CadastrarUsuarioCommandValidatorTests
     public void Deve_Ter_Erro_Quando_Email_For_Invalido()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Usuario Teste", "12345678901", "email-invalido", 100);
+        var command = new CadastrarUsuarioCommand("Usuario Teste", "12345678901", "email-invalido", 100, It.IsAny<Guid>());
 
         // Act
         var result = _validator.TestValidate(command);
@@ -35,7 +36,7 @@ public class CadastrarUsuarioCommandValidatorTests
     public void Deve_Ter_Erro_Quando_CPF_For_Invalido(string cpfInvalido)
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Usuario Teste", cpfInvalido, "teste@sarabank.com", 100);
+        var command = new CadastrarUsuarioCommand("Usuario Teste", cpfInvalido, "teste@sarabank.com", 100, It.IsAny<Guid>());
 
         // Act
         var result = _validator.TestValidate(command);
@@ -49,7 +50,7 @@ public class CadastrarUsuarioCommandValidatorTests
     {
         // Arrange - Use um CPF válido real (gerado ou conhecido)
         // Exemplo de CPF válido: 04444444405 (apenas exemplo)
-        var command = new CadastrarUsuarioCommand("Lucas Silva", "51666431001", "lucas@email.com", 500);
+        var command = new CadastrarUsuarioCommand("Lucas Silva", "51666431001", "lucas@email.com", 500, It.IsAny<Guid>());
 
         // Act
         var result = _validator.TestValidate(command);
@@ -62,7 +63,7 @@ public class CadastrarUsuarioCommandValidatorTests
     public void Deve_Ter_Erro_Quando_Saldo_For_Negativo()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Usuario Teste", "70413481070", "teste@email.com", -10);
+        var command = new CadastrarUsuarioCommand("Usuario Teste", "70413481070", "teste@email.com", -10, It.IsAny<Guid>());
 
         // Act
         var result = _validator.TestValidate(command);

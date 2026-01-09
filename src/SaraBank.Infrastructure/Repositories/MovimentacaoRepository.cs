@@ -1,4 +1,5 @@
 ﻿using Google.Cloud.Firestore;
+using Google.Cloud.PubSub.V1;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
@@ -22,7 +23,7 @@ public class MovimentacaoRepository : IMovimentacaoRepository
 
     public async Task AdicionarAsync(Movimentacao movimentacao)
     {
-        var docRef = _db.Collection(NomeColecao).Document();
+        var docRef = _db.Collection(NomeColecao).Document(movimentacao.Id.ToString());
 
         if (UnitOfWorkFirestore?.TransacaoAtual != null)
         {
@@ -44,6 +45,18 @@ public class MovimentacaoRepository : IMovimentacaoRepository
             ? await UnitOfWorkFirestore.TransacaoAtual.GetSnapshotAsync(query)
             : await query.GetSnapshotAsync();
 
-        return snapshot.Documents.Select(doc => doc.ConvertTo<Movimentacao>());
+        return snapshot.Documents.Select(doc => ToModel(doc));
+    }
+
+    private Movimentacao ToModel(DocumentSnapshot doc)
+    {
+        var dados = doc.ToDictionary();
+        return new Movimentacao(Guid.Parse(doc.Id.ToString()), 
+            Guid.Parse(dados["ContaId"].ToString()),
+            Convert.ToDecimal(dados["Valor"]),
+            Convert.ToString(dados["Tipo"]),
+            Convert.ToString(dados["Descricao"]),
+            Convert.ToDateTime(dados["Data"])
+        );
     }
 }
