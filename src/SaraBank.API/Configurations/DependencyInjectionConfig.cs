@@ -5,47 +5,75 @@ using SaraBank.Application.Handlers.Commands;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Infrastructure.Persistence;
+using SaraBank.Infrastructure.Persistence.Converters;
 using SaraBank.Infrastructure.Repositories;
+using SaraBank.Infrastructure.Services;
 using SaraBank.Infrastructure.Workers;
 
-namespace SaraBank.API.Configurations
+namespace SaraBank.API.Configurations;
+
+public static class DependencyInjectionConfig
 {
-    public static class DependencyInjectionConfig
+    public static IServiceCollection AddDependencyInjection(this IServiceCollection services, IConfiguration configuration)
     {
-        public static IServiceCollection AddDependencyInjection(this IServiceCollection services, IConfiguration configuration)
+        var projectId = configuration["Firestore:ProjectId"] ?? "sara-bank";
+        var topicId = configuration["PubSub:TopicId"] ?? "sara-bank-transacoes-topic";
+        var subscriptionId = configuration["PubSub:SubscriptionId"] ?? "sara-bank-notificacoes-sub";
+
+        // --- BANCO DE DADOS (FIRESTORE COM CONVERSORES) ---
+        services.AddSingleton(sp =>
         {
-            var projectId = configuration["Firestore:ProjectId"];
+            var builder = new FirestoreDbBuilder
+            {
+                ProjectId = projectId,
+                ConverterRegistry = new ConverterRegistry
+                {
+                    new GuidConverter(),
+                    new DecimalConverter()
+                }
+            };
 
-            // --- Banco de Dados ---
-            services.AddSingleton(sp => FirestoreDb.Create(projectId));
+            return builder.Build();
+        });
 
-            // --- Persistência e Transação ---
-            services.AddScoped<IUnitOfWork, FirestoreUnitOfWork>();
+        // --- MENSAGERIA: PUBLISHER (LADO DO ENVIO) ---
+        services.AddSingleton(sp =>
+        {
+            var topicName = TopicName.FromProjectTopic(projectId, topicId);
+            return PublisherClient.Create(topicName);
+        });
 
-            // Repositórios
-            services.AddScoped<IUsuarioRepository, UsuarioRepository>();
-            services.AddScoped<IContaRepository, ContaRepository>();
-            services.AddScoped<IMovimentacaoRepository, MovimentacaoRepository>();
-            services.AddScoped<IOutboxRepository, FirestoreOutboxRepository>();
+        // --- MENSAGERIA: SUBSCRIBER (LADO DO CONSUMO) ---
+        services.AddSingleton(sp =>
+        {
+            var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, subscriptionId);
+            return SubscriberClient.Create(subscriptionName);
+        });
 
-            // --- MediaTr e Validação ---
-            services.AddMediatR(cfg => {
-                cfg.RegisterServicesFromAssembly(typeof(RealizarTransferenciaHandler).Assembly);
-            });
-            services.AddValidatorsFromAssembly(typeof(RealizarTransferenciaHandler).Assembly);
+        // Interface que encapsula o PublisherClient do Google
+        services.AddSingleton<IPublisher, SaraBank.Infrastructure.Services.Publisher>();
 
-            // --- Mensageria (Pub/Sub) ---
-            services.AddSingleton(sp => {
-                var topicName = TopicName.FromProjectTopic(projectId, "sara-bank-transacoes-topic");
-                return PublisherClient.Create(topicName);
-            });
+        // ---  PERSISTÊNCIA E TRANSAÇÃO (SCOPED) ---
+        services.AddScoped<IUnitOfWork, FirestoreUnitOfWork>();
 
-            services.AddSingleton<IPublisher, SaraBank.Infrastructure.Services.Publisher>();
+        // Repositórios
+        services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+        services.AddScoped<IContaRepository, ContaRepository>();
+        services.AddScoped<IMovimentacaoRepository, MovimentacaoRepository>();
+        services.AddScoped<IOutboxRepository, FirestoreOutboxRepository>();
 
-            // --- Background Services (Workers) ---
-            services.AddHostedService<OutboxWorker>();
+        // --- MEDIATR E VALIDAÇÃO ---
+        services.AddMediatR(cfg => {
+            cfg.RegisterServicesFromAssembly(typeof(CriarMovimentacaoHandler).Assembly);
+        });
 
-            return services;
-        }
+        services.AddValidatorsFromAssembly(typeof(CriarMovimentacaoHandler).Assembly);
+
+        // --- BACKGROUND SERVICES (WORKERS) ---
+        // O OutboxWorker envia para o Pub/Sub, o PubSubConsumerService recebe do Pub/Sub
+        services.AddHostedService<OutboxWorker>();
+        services.AddHostedService<PubSubConsumerService>();
+
+        return services;
     }
 }

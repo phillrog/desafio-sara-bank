@@ -3,7 +3,7 @@
 namespace SaraBank.Application.Commands
 {
     public record RealizarTransferenciaCommand(
-    string ContaOrigemId,
-    string ContaDestinoId,
+    Guid ContaOrigemId,
+    Guid ContaDestinoId,
     decimal Valor) : IRequest<bool>;
 }

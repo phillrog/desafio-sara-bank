@@ -1,6 +1,7 @@
-﻿using Moq;
-using SaraBank.Application.Handlers.Commands;
+﻿using FluentValidation;
+using Moq;
 using SaraBank.Application.Commands;
+using SaraBank.Application.Handlers.Commands;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
@@ -12,6 +13,7 @@ public class CriarMovimentacaoTests
     private readonly Mock<IContaRepository> _contaRepoMock;
     private readonly Mock<IOutboxRepository> _outboxRepoMock;
     private readonly Mock<IUnitOfWork> _uowMock;
+    private readonly Mock<IValidator<CriarMovimentacaoCommand>> _validator;
     private readonly CriarMovimentacaoHandler _handler;
 
     public CriarMovimentacaoTests()
@@ -19,6 +21,7 @@ public class CriarMovimentacaoTests
         _contaRepoMock = new Mock<IContaRepository>();
         _outboxRepoMock = new Mock<IOutboxRepository>();
         _uowMock = new Mock<IUnitOfWork>();
+        _validator = new Mock<IValidator<CriarMovimentacaoCommand>>();
 
         _uowMock.Setup(x => x.ExecutarAsync(It.IsAny<Func<Task<bool>>>()))
             .Returns((Func<Task<bool>> func) => func());
@@ -26,7 +29,8 @@ public class CriarMovimentacaoTests
         _handler = new CriarMovimentacaoHandler(
             _contaRepoMock.Object,
             _outboxRepoMock.Object,
-            _uowMock.Object);
+            _uowMock.Object,
+            _validator.Object);
     }
 
     [Fact]
@@ -34,7 +38,7 @@ public class CriarMovimentacaoTests
     {
         // Arrange
         var usuarioId = Guid.NewGuid();
-        var contaId = "conta-123";
+        var contaId = Guid.NewGuid();
         var saldoInicial = 100m;
         var valorDeposito = 50m;
 
@@ -44,6 +48,8 @@ public class CriarMovimentacaoTests
 
         _contaRepoMock.Setup(x => x.ObterPorIdAsync(contaId))
                       .ReturnsAsync(conta);
+        _validator.Setup(x => x.ValidateAsync(command, It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new FluentValidation.Results.ValidationResult());
 
         // Act
         var resultado = await _handler.Handle(command, CancellationToken.None);
@@ -66,9 +72,12 @@ public class CriarMovimentacaoTests
     public async Task Deve_Retornar_False_Quando_Conta_Nao_Existir()
     {
         // Arrange
-        var command = new CriarMovimentacaoCommand("inexistente", 50m, "Deposito");
-        _contaRepoMock.Setup(x => x.ObterPorIdAsync(It.IsAny<string>()))
+        var command = new CriarMovimentacaoCommand(It.IsAny<Guid>(), 50m, "Deposito");
+        _contaRepoMock.Setup(x => x.ObterPorIdAsync(It.IsAny<Guid>()))
                       .ReturnsAsync((ContaCorrente)null);
+
+        _validator.Setup(x => x.ValidateAsync(command, It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new FluentValidation.Results.ValidationResult());
 
         // Act
         var resultado = await _handler.Handle(command, CancellationToken.None);

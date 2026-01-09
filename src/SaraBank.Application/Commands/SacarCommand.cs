@@ -3,5 +3,5 @@
 namespace SaraBank.Application.Commands;
 
 public record SacarCommand(
-    string ContaId,
+    Guid ContaId,
     decimal Valor) : IRequest<bool>;

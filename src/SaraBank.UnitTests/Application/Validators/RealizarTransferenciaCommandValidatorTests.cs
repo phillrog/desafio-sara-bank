@@ -1,6 +1,7 @@
 ﻿using FluentValidation.TestHelper;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Validators;
+using Moq;
 
 namespace SaraBank.UnitTests.Application.Validators;
 
@@ -17,7 +18,7 @@ public class RealizarTransferenciaCommandValidatorTests
     public void Deve_Ter_Erro_Quando_Valor_For_Zero_Ou_Negativo()
     {
         // Arrange
-        var command = new RealizarTransferenciaCommand("CONTA-ORIGEM", "CONTA-DESTINO", 0m);
+        var command = new RealizarTransferenciaCommand(It.IsAny<Guid>(), It.IsAny<Guid>(), 0m);
 
         // Act
         var result = _validator.TestValidate(command);
@@ -31,7 +32,7 @@ public class RealizarTransferenciaCommandValidatorTests
     public void Deve_Ter_Erro_Quando_Contas_Origem_E_Destino_Forem_Iguais()
     {
         // Arrange
-        var contaId = "CONTA-123";
+        var contaId = Guid.NewGuid();
         var command = new RealizarTransferenciaCommand(contaId, contaId, 150.00m);
 
         // Act
@@ -46,7 +47,8 @@ public class RealizarTransferenciaCommandValidatorTests
     public void Deve_Ter_Erro_Quando_Campos_Obrigatorios_Estiverem_Vazios()
     {
         // Arrange
-        var command = new RealizarTransferenciaCommand("", "", 10.00m);
+        var contaInvalida = Guid.Empty;
+        var command = new RealizarTransferenciaCommand(contaInvalida, contaInvalida, 10.00m);
 
         // Act
         var result = _validator.TestValidate(command);
@@ -60,7 +62,9 @@ public class RealizarTransferenciaCommandValidatorTests
     public void Nao_Deve_Ter_Erro_Quando_Comando_For_Valido()
     {
         // Arrange
-        var command = new RealizarTransferenciaCommand("CONTA-A", "CONTA-B", 250.75m);
+        var contaOrigem = Guid.NewGuid();
+        var contaDestino = Guid.NewGuid();
+        var command = new RealizarTransferenciaCommand(contaOrigem, contaDestino, 250.75m);
 
         // Act
         var result = _validator.TestValidate(command);

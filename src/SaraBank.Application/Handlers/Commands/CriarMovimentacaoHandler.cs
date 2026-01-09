@@ -1,4 +1,5 @@
-﻿using MediatR;
+﻿using FluentValidation;
+using MediatR;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Events;
 using SaraBank.Application.Interfaces;
@@ -12,27 +13,32 @@ public class CriarMovimentacaoHandler : IRequestHandler<CriarMovimentacaoCommand
     private readonly IContaRepository _contaRepository;
     private readonly IOutboxRepository _outboxRepository;
     private readonly IUnitOfWork _uow;
+    private readonly IValidator<CriarMovimentacaoCommand> _validator;
 
     public CriarMovimentacaoHandler(
         IContaRepository contaRepository,
         IOutboxRepository outboxRepository,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IValidator<CriarMovimentacaoCommand> validator)
     {
         _contaRepository = contaRepository;
         _outboxRepository = outboxRepository;
         _uow = uow;
+        _validator = validator;
     }
 
     public async Task<bool> Handle(CriarMovimentacaoCommand request, CancellationToken ct)
     {
-        // Usando o seu padrão: ExecutarAsync gerencia a transação
+        var validationResult = await _validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid) throw new ValidationException(validationResult.Errors);
+
         return await _uow.ExecutarAsync(async () =>
         {
-            // 1. Busca a conta
+            // Busca a conta
             var conta = await _contaRepository.ObterPorIdAsync(request.ContaId);
             if (conta == null) return false;
 
-            // 2. Regra de Negócio
+            // Valida operação
             if (request.Tipo.Equals("Deposito", StringComparison.OrdinalIgnoreCase))
                 conta.Creditar(request.Valor);
             else
@@ -40,12 +46,12 @@ public class CriarMovimentacaoHandler : IRequestHandler<CriarMovimentacaoCommand
 
             await _contaRepository.AtualizarAsync(conta);
 
-            // 3. Gerar o Evento para o Outbox
+            // Gerar o Evento para o Outbox
             var evento = new MovimentacaoRealizadaEvent(
                 contaId: request.ContaId,
                 valor: request.Valor,
                 tipo: request.Tipo
-            );
+            );            
 
             var outboxMessage = new OutboxMessageDTO(
                 Id: Guid.NewGuid().ToString(),
@@ -53,7 +59,7 @@ public class CriarMovimentacaoHandler : IRequestHandler<CriarMovimentacaoCommand
                 Tipo: nameof(MovimentacaoRealizadaEvent)
             );
 
-            // 4. Salva o evento na mesma transação do saldo
+            // Salva o evento na mesma transação do saldo
             await _outboxRepository.AdicionarAsync(outboxMessage, ct);
 
             return true;

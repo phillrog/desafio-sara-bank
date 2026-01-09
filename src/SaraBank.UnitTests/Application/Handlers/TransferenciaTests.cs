@@ -68,7 +68,7 @@ public class RealizarTransferenciaTests
     public async Task Deve_Falhar_Quando_Validacao_Do_FluentValidation_Retornar_Erro()
     {
         // Arrange
-        var command = new RealizarTransferenciaCommand("origem", "destino", -50m);
+        var command = new RealizarTransferenciaCommand(It.IsAny<Guid>(), It.IsAny<Guid>(), -50m);
         var failure = new ValidationFailure("Valor", "O valor não pode ser negativo");
 
         _mockValidator.Setup(v => v.ValidateAsync(command, It.IsAny<CancellationToken>()))

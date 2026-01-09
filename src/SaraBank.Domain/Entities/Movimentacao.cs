@@ -6,28 +6,28 @@ namespace SaraBank.Domain.Entities;
 public class Movimentacao
 {
     [FirestoreDocumentId]
-    public string Id { get; set; }
+    public Guid Id { get; private set; }
 
     [FirestoreProperty]
-    public string ContaId { get; set; }
+    public Guid ContaId { get; private set; }
 
     [FirestoreProperty]
-    public decimal Valor { get; set; }
+    public decimal Valor { get; private set; }
 
     [FirestoreProperty]
-    public string Tipo { get; set; } // DEBITO / CREDITO
+    public string Tipo { get; private set; } // DEBITO / CREDITO
 
     [FirestoreProperty]
-    public string Descricao { get; set; }
+    public string Descricao { get; private set; }
 
     [FirestoreProperty]
-    public DateTime Data { get; set; }
+    public DateTime Data { get; private set; }
 
     public Movimentacao() { } 
 
-    public Movimentacao(string contaId, decimal valor, string tipo, string descricao)
+    public Movimentacao(Guid contaId, decimal valor, string tipo, string descricao)
     {
-        Id = Guid.NewGuid().ToString();
+        Id = Guid.NewGuid();
         ContaId = contaId;
         Valor = valor;
         Tipo = tipo;

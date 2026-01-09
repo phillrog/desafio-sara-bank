@@ -6,15 +6,23 @@ namespace SaraBank.Domain.Entities
     public class ContaCorrente
     {
         [FirestoreDocumentId]
-        public string Id { get; private set; }
+        public Guid Id { get; private set; }
         [FirestoreProperty]
         public Guid UsuarioId { get; private set; }
         [FirestoreProperty]
         public decimal Saldo { get; private set; }
 
+        public ContaCorrente() {}
         public ContaCorrente(Guid usuarioId, decimal saldoInicial = 0)
         {
-            Id = Guid.NewGuid().ToString();
+            Id = Guid.NewGuid();
+            UsuarioId = usuarioId;
+            Saldo = saldoInicial;
+        }
+
+        public ContaCorrente(Guid id, Guid usuarioId, decimal saldoInicial = 0)
+        {
+            Id = id;
             UsuarioId = usuarioId;
             Saldo = saldoInicial;
         }

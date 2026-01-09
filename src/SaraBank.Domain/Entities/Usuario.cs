@@ -1,11 +1,23 @@
-﻿namespace SaraBank.Domain.Entities
+﻿using Google.Cloud.Firestore;
+
+namespace SaraBank.Domain.Entities
 {
+    [FirestoreData]
     public class Usuario
     {
+        [FirestoreDocumentId]
         public Guid Id { get; private set; }
+
+        [FirestoreProperty]
         public string Nome { get; private set; }
-        public string CPF { get; private set; }
+
+        [FirestoreProperty]
         public string Email { get; private set; }
+
+        [FirestoreProperty]
+        public string CPF { get; private set; }
+
+        public Usuario() { }
 
         public Usuario(string nome, string cpf, string email)
         {

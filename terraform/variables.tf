@@ -6,5 +6,5 @@ variable "project_id" {
 variable "region" {
   description = "A região onde os recursos serão criados"
   type        = string
-  default     = "southamerica-east1" # São Paulo
+  default     = "us-central1" # Mais barato
 }

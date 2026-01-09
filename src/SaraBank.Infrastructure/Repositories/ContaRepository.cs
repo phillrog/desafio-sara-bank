@@ -3,6 +3,7 @@ using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Infrastructure.Persistence;
+using System.Linq;
 
 namespace SaraBank.Infrastructure.Repositories;
 
@@ -19,7 +20,7 @@ public class ContaRepository : IContaRepository
         _db = db;
         _uow = uow;
     }
-    
+
 
     public async Task AdicionarAsync(ContaCorrente conta)
     {
@@ -36,9 +37,9 @@ public class ContaRepository : IContaRepository
         }
     }
 
-    public async Task<ContaCorrente> ObterPorIdAsync(string id)
+    public async Task<ContaCorrente> ObterPorIdAsync(Guid id)
     {
-        var docRef = _db.Collection(NomeColecao).Document(id);
+        var docRef = _db.Collection(NomeColecao).Document(id.ToString());
 
         DocumentSnapshot snapshot = UnitOfWorkFirestore?.TransacaoAtual != null
             ? await UnitOfWorkFirestore.TransacaoAtual.GetSnapshotAsync(docRef)
@@ -47,11 +48,20 @@ public class ContaRepository : IContaRepository
         if (!snapshot.Exists)
             throw new Exception("Conta corrente não encontrada no SARA Bank.");
 
-        return snapshot.ConvertTo<ContaCorrente>();
+        var dados = snapshot.ToDictionary();
+
+        return new ContaCorrente(Guid.Parse(snapshot.Id),
+            dados.ContainsKey("UsuarioId")
+                    ? Guid.Parse(dados["UsuarioId"].ToString())
+                    : Guid.Empty,
+            dados.ContainsKey("Saldo")
+                ? Convert.ToDecimal(dados["Saldo"])
+                : 0m
+        );
     }
 
     public async Task<ContaCorrente?> ObterPorUsuarioIdAsync(Guid usuarioId)
-    {        
+    {
         var query = _db.Collection(NomeColecao).WhereEqualTo("UsuarioId", usuarioId.ToString()).Limit(1);
 
         var snapshot = (UnitOfWorkFirestore?.TransacaoAtual != null)
@@ -60,7 +70,16 @@ public class ContaRepository : IContaRepository
 
         if (snapshot.Documents.Count == 0) return null;
 
-        return snapshot.Documents[0].ConvertTo<ContaCorrente>();
+        var dados = snapshot.Documents[0].ToDictionary();
+
+        return new ContaCorrente(Guid.Parse(snapshot.Documents[0].Id),
+            dados.ContainsKey("UsuarioId")
+                    ? Guid.Parse(dados["UsuarioId"].ToString())
+                    : Guid.Empty,
+            dados.ContainsKey("Saldo")
+                ? Convert.ToDecimal(dados["Saldo"])
+                : 0m
+        );
     }
 
     public async Task AtualizarAsync(ContaCorrente conta)

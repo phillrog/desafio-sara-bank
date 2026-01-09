@@ -18,6 +18,7 @@
     <ProjectReference Include="..\SaraBank.Application\SaraBank.Application.csproj" />
     <ProjectReference Include="..\SaraBank.Domain\SaraBank.Domain.csproj" />
     <ProjectReference Include="..\SaraBank.Infrastructure\SaraBank.Infrastructure.csproj" />
+    <ProjectReference Include="..\SaraBank.Worker\SaraBank.Worker.csproj" />
   </ItemGroup>
 
 </Project>

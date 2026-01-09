@@ -2,9 +2,17 @@
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+var credentialPath = builder.Configuration["Firestore:CredentialPath"];
+if (!string.IsNullOrEmpty(credentialPath))
+{
+    Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credentialPath);
+}
+
+// Controllers
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Swagger
 builder.Services.AddSwaggerGen();
 
 // Dependency Injection Configuration
@@ -20,6 +28,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapControllers();
 
 
 app.Run();

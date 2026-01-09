@@ -35,6 +35,7 @@ resource "google_firestore_index" "movimentacoes_index" {
     field_path = "Data"
     order      = "DESCENDING"
   }
+  depends_on = [google_firestore_database.database]
 }
 
 # 4. Índice para o Outbox Worker
@@ -52,6 +53,7 @@ resource "google_firestore_index" "outbox_index" {
     field_path = "CriadoEm"
     order      = "ASCENDING"
   }
+  depends_on = [google_firestore_database.database]
 }
 
 # 5. Pub/Sub - Tópico de Eventos Financeiros
