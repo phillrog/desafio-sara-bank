@@ -2,6 +2,7 @@
 using Google.Cloud.Firestore;
 using Google.Cloud.PubSub.V1;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using SaraBank.Application.Behaviors;
 using SaraBank.Application.Handlers.Commands;
 using SaraBank.Application.Interfaces;
@@ -54,7 +55,19 @@ public static class DependencyInjectionConfig
         });
 
         // Interface que encapsula o PublisherClient do Google
-        services.AddSingleton<SaraBank.Application.Interfaces.IPublisher, SaraBank.Infrastructure.Services.Publisher>();
+        services.AddSingleton<SaraBank.Application.Interfaces.IPublisher, SaraBank.Infrastructure.Services.Publisher>(sp =>
+        {
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            var logger = sp.GetRequiredService<ILogger<SaraBank.Infrastructure.Services.Publisher>>();
+            // Mapeamento: Tipo de Evento no Outbox -> Nome do Tópico no GCP
+            var mapeamento = new Dictionary<string, string>
+            {
+                { "UsuarioCadastrado", "sara-bank-usuarios" },
+                { "NovaMovimentacao", "sara-bank-movimentacoes" },
+                { "TransferenciaEntreContas", "sara-bank-transferencias" }
+            };
+            return new SaraBank.Infrastructure.Services.Publisher(projectId, mapeamento, logger);
+        });
 
         // ---  PERSISTÊNCIA E TRANSAÇÃO (SCOPED) ---
         services.AddScoped<IUnitOfWork, FirestoreUnitOfWork>();
@@ -82,9 +95,34 @@ public static class DependencyInjectionConfig
         });
 
         // --- BACKGROUND SERVICES (WORKERS) ---
-        // O OutboxWorker envia para o Pub/Sub, o PubSubConsumerService recebe do Pub/Sub
+        // Worker de Usuários
+        services.AddHostedService<UsuarioConsumerService>(sp =>
+        {
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            var logger = sp.GetRequiredService<ILogger<UsuarioConsumerService>>();
+
+            // Criar o client específico para a subscription de usuários
+            var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, "sara-bank-usuarios-sub");
+            var client = SubscriberClient.Create(subscriptionName);
+
+            return new UsuarioConsumerService(sp, client, logger);
+        });
+
+        // Worker de Movimentações
+        services.AddHostedService<MovimentacaoConsumerService>(sp =>
+        {
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            var logger = sp.GetRequiredService<ILogger<MovimentacaoConsumerService>>();
+
+            // Criar o client específico para a subscription de movimentações
+            var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, "sara-bank-movimentacoes-sub");
+            var client = SubscriberClient.Create(subscriptionName);
+
+            return new MovimentacaoConsumerService(sp, client, logger);
+        });
+
+        // Motor (Outbox)
         services.AddHostedService<OutboxWorker>();
-        services.AddHostedService<PubSubConsumerService>();
 
         return services;
     }

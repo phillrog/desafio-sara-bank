@@ -2,6 +2,6 @@
 {
     public interface IPublisher
     {
-        Task<string> PublicarAsync(string payload, CancellationToken ct = default);
+        Task<string> PublicarAsync(string payload, string topico, CancellationToken ct = default);
     }
 }

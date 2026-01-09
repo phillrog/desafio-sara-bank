@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using SaraBank.API.DTOs;
 using SaraBank.Application.Commands;
 
 namespace SaraBank.API.Controllers;
@@ -16,28 +17,26 @@ public class MovimentacaoController : ControllerBase
     }
 
     [HttpPost("deposito")]
-    public async Task<IActionResult> RealizarDeposito([FromBody] CriarMovimentacaoCommand command)
+    public async Task<IActionResult> RealizarDeposito([FromBody] SolicitarMovimentacaoRequest request)
     {
-        command.Tipo = "Deposito";
-
+        var command = new SolicitarMovimentacaoCommand(request.ContaId, request.Valor, "Deposito");
         var resultado = await _mediator.Send(command);
 
         if (resultado)
-            return Ok(new { mensagem = "Depósito processado com sucesso!" });
+            return Accepted(new { mensagem = "Solicitação de depósito enviada para processamento." });
 
-        return BadRequest(new { mensagem = "Não foi possível processar o depósito." });
+        return BadRequest();
     }
 
     [HttpPost("saque")]
-    public async Task<IActionResult> RealizarSaque([FromBody] CriarMovimentacaoCommand command)
+    public async Task<IActionResult> RealizarSaque([FromBody] SolicitarMovimentacaoRequest request)
     {
-        command.Tipo = "Saque";
-
+        var command = new SolicitarMovimentacaoCommand(request.ContaId, request.Valor, "Saque");
         var resultado = await _mediator.Send(command);
 
         if (resultado)
-            return Ok(new { mensagem = "Saque realizado com sucesso!" });
+            return Accepted(new { mensagem = "Solicitação de saque enviada para processamento." });
 
-        return BadRequest(new { mensagem = "Falha no saque. Verifique o saldo ou a conta." });
+        return BadRequest();
     }
 }

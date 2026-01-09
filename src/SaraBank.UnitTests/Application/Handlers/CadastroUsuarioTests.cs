@@ -16,14 +16,12 @@ public class CadastroUsuarioTests
     private readonly Mock<IContaRepository> _mockContaRepo;
     private readonly Mock<IUnitOfWork> _mockUow;
     private readonly CadastrarUsuarioHandler _handler;
-    private readonly Mock<IMovimentacaoRepository> _movimentacaoRepository;
 
     public CadastroUsuarioTests()
     {
         _mockUsuarioRepo = new Mock<IUsuarioRepository>();
         _mockContaRepo = new Mock<IContaRepository>();
         _mockUow = new Mock<IUnitOfWork>();
-        _movimentacaoRepository = new Mock<IMovimentacaoRepository>();
 
         _mockUow.Setup(u => u.ExecutarAsync(It.IsAny<Func<Task<string>>>()))
                 .Returns(async (Func<Task<string>> acao) => await acao());
@@ -31,8 +29,7 @@ public class CadastroUsuarioTests
         _handler = new CadastrarUsuarioHandler(
             _mockUsuarioRepo.Object,
             _mockContaRepo.Object,
-            _mockUow.Object,
-            _movimentacaoRepository.Object);
+            _mockUow.Object);
     }
 
     [Fact]
@@ -97,10 +94,6 @@ public class CadastroUsuarioTests
 
         // Assert
         usuarioId.Should().NotBeNullOrEmpty();
-        
-        _movimentacaoRepository.Verify(r => r.AdicionarAsync(It.Is<Movimentacao>(m =>
-            m.Valor == command.SaldoInicial &&
-            m.Descricao == "Depósito Inicial")), Times.Once);
 
         _mockUow.Verify(u => u.AdicionarAoOutboxAsync(It.IsAny<string>(), "UsuarioCadastrado"), Times.Once);
     }
@@ -121,8 +114,5 @@ public class CadastroUsuarioTests
         // Verifica se Usuário e Conta foram criados
         _mockUsuarioRepo.Verify(r => r.AdicionarAsync(It.IsAny<Usuario>()), Times.Once);
         _mockContaRepo.Verify(r => r.AdicionarAsync(It.IsAny<ContaCorrente>()), Times.Once);
-
-        // GARANTE que a movimentação NÃO foi adicionada
-        _movimentacaoRepository.Verify(r => r.AdicionarAsync(It.IsAny<Movimentacao>()), Times.Never);
     }
 }

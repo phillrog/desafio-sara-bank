@@ -1,8 +1,8 @@
-﻿using FluentValidation;
-using MediatR;
+﻿using MediatR;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Events;
 using SaraBank.Application.Interfaces;
+using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using System.Text.Json;
 
@@ -13,15 +13,21 @@ public class CriarMovimentacaoHandler : IRequestHandler<CriarMovimentacaoCommand
     private readonly IContaRepository _contaRepository;
     private readonly IOutboxRepository _outboxRepository;
     private readonly IUnitOfWork _uow;
+    private readonly IMovimentacaoRepository _movimentacaoRepository;
+    private readonly IMediator _mediator;
 
     public CriarMovimentacaoHandler(
         IContaRepository contaRepository,
         IOutboxRepository outboxRepository,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IMovimentacaoRepository movimentacaoRepository,
+        IMediator mediator)
     {
         _contaRepository = contaRepository;
         _outboxRepository = outboxRepository;
         _uow = uow;
+        _movimentacaoRepository = movimentacaoRepository;
+        _mediator = mediator;
     }
 
     public async Task<bool> Handle(CriarMovimentacaoCommand request, CancellationToken ct)
@@ -40,21 +46,25 @@ public class CriarMovimentacaoHandler : IRequestHandler<CriarMovimentacaoCommand
 
             await _contaRepository.AtualizarAsync(conta);
 
-            // Gerar o Evento para o Outbox
+            // Criamos a entidade de domínio de movimentação
+            var movimentacao = new Movimentacao(
+                Guid.NewGuid(),
+                request.ContaId,
+                request.Valor,
+                request.Tipo,
+                "Processamento de movimentação",
+                DateTime.UtcNow
+            );
+            
+            await _movimentacaoRepository.AdicionarAsync(movimentacao);
+
             var evento = new MovimentacaoRealizadaEvent(
                 contaId: request.ContaId,
                 valor: request.Valor,
                 tipo: request.Tipo
-            );            
-
-            var outboxMessage = new OutboxMessageDTO(
-                Id: Guid.NewGuid().ToString(),
-                Payload: JsonSerializer.Serialize(evento),
-                Tipo: nameof(MovimentacaoRealizadaEvent)
             );
 
-            // Salva o evento na mesma transação do saldo
-            await _outboxRepository.AdicionarAsync(outboxMessage, ct);
+            await _mediator.Publish(evento, ct);
 
             return true;
         });

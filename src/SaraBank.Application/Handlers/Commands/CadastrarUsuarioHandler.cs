@@ -15,18 +15,15 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
     private readonly IUsuarioRepository _usuarioRepository;
     private readonly IContaRepository _contaRepository;
     private readonly IUnitOfWork _uow;
-    private readonly IMovimentacaoRepository _movimentacaoRepository;
 
     public CadastrarUsuarioHandler(
         IUsuarioRepository usuarioRepository,
         IContaRepository contaRepository,
-        IUnitOfWork uow,
-        IMovimentacaoRepository movimentacaoRepository)
+        IUnitOfWork uow)
     {
         _usuarioRepository = usuarioRepository;
         _contaRepository = contaRepository;
         _uow = uow;
-        _movimentacaoRepository = movimentacaoRepository;
     }
 
     public async Task<string> Handle(CadastrarUsuarioCommand request, CancellationToken ct)
@@ -42,17 +39,18 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
             var novoUsuario = new Usuario(request.Nome, request.CPF, request.Email);
             await _usuarioRepository.AdicionarAsync(novoUsuario);
 
-            var novaConta = new ContaCorrente(novoUsuario.Id, request.SaldoInicial);
+            var novaConta = new ContaCorrente(novoUsuario.Id, 0); // Deve iniciar com zero se não haverá duplicidade
             await _contaRepository.AdicionarAsync(novaConta);
 
-            var evento = new
-            {
-                UsuarioId = novoUsuario.Id,
-                novoUsuario.Nome,
-                novoUsuario.Email,
-                ContaId = novaConta.Id,
-                DataCriacao = DateTime.UtcNow
-            };
+            var evento = new UsuarioCadastradoEvent
+            (
+                UsuarioId: novoUsuario.Id,
+                Nome: novoUsuario.Nome,
+                Email: novoUsuario.Email,
+                ContaId: novaConta.Id,
+                DataCriacao: DateTime.UtcNow,
+                SaldoInicial: request.SaldoInicial
+            );
 
             var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -65,27 +63,7 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
             var payload = JsonSerializer.Serialize(envelope, options);
             
             // Persistência Atômica no Outbox
-            await _uow.AdicionarAoOutboxAsync(payload, "UsuarioCadastrado");
-
-            if (request.SaldoInicial > 0)
-            {
-                var movimentacaoInicial = new Movimentacao(
-                    novaConta.Id,
-                    request.SaldoInicial,
-                    "Credito",
-                    "Depósito Inicial"
-                );
-
-                await _movimentacaoRepository.AdicionarAsync(movimentacaoInicial);
-
-                var envelopeMov = new
-                {
-                    TipoEvento = "MovimentacaoRealizada",
-                    Payload = JsonSerializer.Serialize(new MovimentacaoRealizadaEvent(novaConta.Id, request.SaldoInicial, "Depósito Inicial"), options)
-                };
-
-                await _uow.AdicionarAoOutboxAsync(JsonSerializer.Serialize(envelopeMov), "MovimentacaoRealizada");
-            }
+            await _uow.AdicionarAoOutboxAsync(payload, "UsuarioCadastrado");            
 
             return novoUsuario.Id.ToString();
         });

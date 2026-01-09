@@ -1,4 +1,6 @@
-# 1. Ativação das APIs do Google Cloud
+# =================================================================
+# 1. ATIVAÇÃO DAS APIS DO GOOGLE CLOUD
+# =================================================================
 resource "google_project_service" "firestore" {
   service            = "firestore.googleapis.com"
   disable_on_destroy = false
@@ -9,19 +11,24 @@ resource "google_project_service" "pubsub" {
   disable_on_destroy = false
 }
 
-# 2. Configuração do Banco de Dados Firestore (Modo Nativo)
+# =================================================================
+# 2. CONFIGURAÇÃO DO BANCO DE DADOS FIRESTORE (MODO NATIVO)
+# =================================================================
 resource "google_firestore_database" "database" {
   project     = var.project_id
-  name        = "(default)"
+  name        = "(default)" # O ID padrão obrigatório
   location_id = var.region
   type        = "FIRESTORE_NATIVE"
 
-  # Garante que as APIs foram ativadas antes de criar o banco
+  # O erro 400 sugere aguardar a propagação da exclusão/ativação
   depends_on = [google_project_service.firestore]
 }
 
-# 3. Índice Composto para o Extrato de Movimentações
-# Necessário para: .WhereEqualTo("ContaId", id).OrderByDescending("Data")
+# =================================================================
+# 3. ÍNDICES COMPOSTOS (ESSENCIAIS PARA O CÓDIGO .NET)
+# =================================================================
+
+# Índice para Extrato: .WhereEqualTo("ContaId", id).OrderByDescending("Data")
 resource "google_firestore_index" "movimentacoes_index" {
   project    = var.project_id
   collection = "Movimentacoes"
@@ -38,8 +45,7 @@ resource "google_firestore_index" "movimentacoes_index" {
   depends_on = [google_firestore_database.database]
 }
 
-# 4. Índice para o Outbox Worker
-# Necessário para: .WhereEqualTo("Processado", false).OrderBy("CriadoEm")
+# Índice para o Worker do Outbox: .WhereEqualTo("Processado", false).OrderBy("CriadoEm")
 resource "google_firestore_index" "outbox_index" {
   project    = var.project_id
   collection = "Outbox"
@@ -56,28 +62,52 @@ resource "google_firestore_index" "outbox_index" {
   depends_on = [google_firestore_database.database]
 }
 
-# 5. Pub/Sub - Tópico de Eventos Financeiros
-resource "google_pubsub_topic" "transacoes_topic" {
-  name    = "sara-bank-transacoes-topic"
+# =================================================================
+# 4. PUB/SUB - TÓPICOS (AS ESTEIRAS DE EVENTOS)
+# =================================================================
+
+resource "google_pubsub_topic" "usuarios_topic" {
+  name    = "sara-bank-usuarios"
   project = var.project_id
-
-  labels = {
-    environment = "dev"
-    app         = "sarabank"
-  }
-
+  labels  = { app = "sarabank", context = "users" }
   depends_on = [google_project_service.pubsub]
 }
 
-# 6. Pub/Sub - Assinatura para Consumidores (ex: Notificações)
-resource "google_pubsub_subscription" "notificacoes_sub" {
-  name    = "sara-bank-notificacoes-sub"
-  topic   = google_pubsub_topic.transacoes_topic.name
+resource "google_pubsub_topic" "movimentacoes_topic" {
+  name    = "sara-bank-movimentacoes"
   project = var.project_id
+  labels  = { app = "sarabank", context = "finance" }
+  depends_on = [google_project_service.pubsub]
+}
 
-  # Tempo para o subscriber confirmar o processamento
+resource "google_pubsub_topic" "transferencias_topic" {
+  name    = "sara-bank-transferencias"
+  project = var.project_id
+  labels  = { app = "sarabank", context = "transfers" }
+  depends_on = [google_project_service.pubsub]
+}
+
+# =================================================================
+# 5. PUB/SUB - ASSINATURAS (OS CONSUMIDORES)
+# =================================================================
+
+resource "google_pubsub_subscription" "usuarios_sub" {
+  name                 = "sara-bank-usuarios-sub"
+  topic                = google_pubsub_topic.usuarios_topic.name
+  project              = var.project_id
   ack_deadline_seconds = 20
+}
 
-  # Retenção de mensagens por 7 dias se não houver confirmação
-  message_retention_duration = "604800s"
+resource "google_pubsub_subscription" "movimentacoes_sub" {
+  name                 = "sara-bank-movimentacoes-sub"
+  topic                = google_pubsub_topic.movimentacoes_topic.name
+  project              = var.project_id
+  ack_deadline_seconds = 20
+}
+
+resource "google_pubsub_subscription" "transferencias_sub" {
+  name                 = "sara-bank-transferencias-sub"
+  topic                = google_pubsub_topic.transferencias_topic.name
+  project              = var.project_id
+  ack_deadline_seconds = 30 # Mais tempo para processar as duas pernas da transferência
 }

@@ -51,12 +51,22 @@ public class MovimentacaoRepository : IMovimentacaoRepository
     private Movimentacao ToModel(DocumentSnapshot doc)
     {
         var dados = doc.ToDictionary();
-        return new Movimentacao(Guid.Parse(doc.Id.ToString()), 
-            Guid.Parse(dados["ContaId"].ToString()),
-            Convert.ToDecimal(dados["Valor"]),
-            Convert.ToString(dados["Tipo"]),
-            Convert.ToString(dados["Descricao"]),
-            Convert.ToDateTime(dados["Data"])
-        );
+
+        Guid id = Guid.Parse(doc.Id);
+        Guid contaId = Guid.Parse(dados["ContaId"].ToString());
+        decimal valor = Convert.ToDecimal(dados["Valor"]);
+        string tipo = dados.ContainsKey("Tipo") ? dados["Tipo"].ToString() : string.Empty;
+        string descricao = dados.ContainsKey("Descricao") ? dados["Descricao"].ToString() : string.Empty;
+        DateTime data;
+        if (dados["Data"] is Google.Cloud.Firestore.Timestamp ts)
+        {
+            data = ts.ToDateTime();
+        }
+        else
+        {
+            data = Convert.ToDateTime(dados["Data"]);
+        }
+
+        return new Movimentacao(id, contaId, valor, tipo, descricao, data);
     }
 }
