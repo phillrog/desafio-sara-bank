@@ -23,19 +23,25 @@ public class Movimentacao
     [FirestoreProperty]
     public DateTime Data { get; private set; }
 
-    public Movimentacao() { } 
+    [FirestoreProperty]
+    public Guid? SagaId { get; private set; }
 
+    public Movimentacao() { }
+
+    // Construtor Base para novas movimentações comuns
     public Movimentacao(Guid contaId, decimal valor, string tipo, string descricao)
+        : this(Guid.NewGuid(), contaId, valor, tipo, descricao, DateTime.UtcNow, null)
     {
-        Id = Guid.NewGuid();
-        ContaId = contaId;
-        Valor = valor;
-        Tipo = tipo;
-        Descricao = descricao;
-        Data = DateTime.UtcNow;
     }
 
-    public Movimentacao(Guid id, Guid contaId, decimal valor, string tipo, string descricao, DateTime data)
+    // Construtor Base para novas movimentações de SAGA
+    public Movimentacao(Guid contaId, decimal valor, string tipo, string descricao, Guid sagaId)
+        : this(Guid.NewGuid(), contaId, valor, tipo, descricao, DateTime.UtcNow, sagaId)
+    {
+    }
+
+    // O Construtor "Mestre" que todos os outros chamam
+    public Movimentacao(Guid id, Guid contaId, decimal valor, string tipo, string descricao, DateTime data, Guid? sagaId = null)
     {
         Id = id;
         ContaId = contaId;
@@ -43,5 +49,6 @@ public class Movimentacao
         Tipo = tipo;
         Descricao = descricao;
         Data = data;
+        SagaId = sagaId;
     }
 }

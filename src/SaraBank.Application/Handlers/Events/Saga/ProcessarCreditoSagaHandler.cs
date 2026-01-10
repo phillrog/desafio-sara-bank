@@ -33,6 +33,13 @@ public class ProcessarCreditoSagaHandler : INotificationHandler<SaldoDebitadoEve
         {
             await _uow.ExecutarAsync<bool>(async () =>
             {
+                var jaProcessado = await _movimentacaoRepository.ExisteMovimentacaoParaSagaAsync(notification.SagaId, "CREDITO");
+                if (jaProcessado)
+                {
+                    _logger.LogInformation($" [SAGA-IDEMPOTENCY] {notification.SagaId}: Crédito já realizado.");
+                    return true;
+                }
+
                 var destino = await _contaRepository.ObterPorIdAsync(notification.ContaDestinoId);
 
                 if (destino == null)
@@ -46,7 +53,8 @@ public class ProcessarCreditoSagaHandler : INotificationHandler<SaldoDebitadoEve
                     destino.Id,
                     notification.Valor,
                     "CREDITO",
-                    $"Recebido via Saga (Ref: {notification.SagaId})"
+                    $"Recebido via Saga (Ref: {notification.SagaId})",
+                    notification.SagaId
                 );
                 await _movimentacaoRepository.AdicionarAsync(mov);
 

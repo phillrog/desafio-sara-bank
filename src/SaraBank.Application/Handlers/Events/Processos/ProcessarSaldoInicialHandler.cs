@@ -3,6 +3,8 @@ using SaraBank.Application.Events;
 using SaraBank.Application.Interfaces;
 using System.Text.Json;
 
+namespace SaraBank.Application.Handlers.Events;
+
 public class ProcessarSaldoInicialHandler : INotificationHandler<UsuarioCadastradoEvent>
 {
     private readonly IUnitOfWork _uow;

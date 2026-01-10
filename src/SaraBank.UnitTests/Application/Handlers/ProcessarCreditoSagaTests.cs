@@ -69,4 +69,35 @@ public class ProcessarCreditoSagaHandlerTests
                 It.Is<Func<It.IsAnyType, Exception, string>>((v, t) => true)),
             Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_Deve_Ignorar_Processamento_Se_Credito_Ja_Foi_Realizado()
+    {
+        // Arrange
+        var sagaId = Guid.NewGuid();
+        var evento = new SaldoDebitadoEvent(sagaId, Guid.NewGuid(), Guid.NewGuid(), 100m);
+
+        // Simula que a movimentação de CRÉDITO já existe no banco para esta Saga
+        _movRepoMock.Setup(m => m.ExisteMovimentacaoParaSagaAsync(sagaId, "CREDITO"))
+                    .ReturnsAsync(true);
+
+        // Act
+        await _handler.Handle(evento, CancellationToken.None);
+
+        // Assert
+        // Não deve nem tentar buscar a conta destino, pois já sabe que processou
+        _contaRepoMock.Verify(r => r.ObterPorIdAsync(It.IsAny<Guid>()), Times.Never);
+
+        // Não deve adicionar nada ao Outbox nem atualizar conta
+        _contaRepoMock.Verify(r => r.AtualizarAsync(It.IsAny<ContaCorrente>()), Times.Never);
+
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Crédito já realizado")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
+    }
 }

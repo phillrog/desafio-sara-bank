@@ -80,6 +80,7 @@ public class OutboxWorker : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, " [FALHA DEFINITIVA] Não foi possível despachar o evento {Id} após retentativas.", msg.Id);
+                await repository.IncrementarFalhaAsync(msg.Id, ct);
             }
         }
     }

@@ -2,10 +2,10 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using SaraBank.Application.Events;
-using SaraBank.Application.Handlers.Events;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Application.Interfaces;
+using SaraBank.Application.Handlers.Events;
 
 namespace SaraBank.UnitTests.Application.Handlers;
 
@@ -91,5 +91,60 @@ public class ProcessarDebitoSagaHandlerTests
 
         // Não deve ter atualizado saldo nem criado movimentação de débito
         _mockContaRepo.Verify(r => r.AtualizarAsync(It.IsAny<ContaCorrente>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_Deve_Ignorar_Debito_Se_Ja_Foi_Processado_Anteriormente()
+    {
+        // Arrange
+        var sagaId = Guid.NewGuid();
+        var evento = new TransferenciaIniciadaEvent(sagaId, Guid.NewGuid(), Guid.NewGuid(), 100m);
+
+        // Simula que a movimentação de DÉBITO já existe para esta Saga
+        _mockMovRepo.Setup(m => m.ExisteMovimentacaoParaSagaAsync(sagaId, "DEBITO"))
+                    .ReturnsAsync(true);
+
+        // Act
+        await _handler.Handle(evento, CancellationToken.None);
+
+        // Assert
+        // Se já processou, não deve nem buscar a conta no repositório
+        _mockContaRepo.Verify(r => r.ObterPorIdAsync(It.IsAny<Guid>()), Times.Never);
+
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Débito já realizado")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_Deve_Relancar_Excecao_Quando_Ocorre_Falha_Tecnica()
+    {
+        // Arrange
+        var evento = new TransferenciaIniciadaEvent(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m);
+
+        // Força um erro de conexão no repositório
+        _mockMovRepo.Setup(m => m.ExisteMovimentacaoParaSagaAsync(It.IsAny<Guid>(), "DEBITO"))
+                    .ThrowsAsync(new Exception("Timeout Firestore"));
+
+        // Act
+        Func<Task> act = async () => await _handler.Handle(evento, CancellationToken.None);
+
+        // Assert
+        // O handler deve relançar para o Worker tentar novamente (Retry Policy)
+        await act.Should().ThrowAsync<Exception>().WithMessage("Timeout Firestore");
+
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Critical,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains("Falha na infraestrutura")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.Once);
     }
 }

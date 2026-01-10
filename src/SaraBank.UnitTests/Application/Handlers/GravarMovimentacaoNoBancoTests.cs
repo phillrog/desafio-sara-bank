@@ -1,6 +1,7 @@
 ﻿using Moq;
 using SaraBank.Application.Commands;
 using MediatR;
+using SaraBank.Application.Handlers.Events;
 
 namespace SaraBank.UnitTests.Application;
 

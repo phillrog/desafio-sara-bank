@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using SaraBank.Application.Events;
 
-namespace SaraBank.Application.Handlers.Notifications;
+namespace SaraBank.Application.Handlers.Events;
 
 public class MovimentacaoLogHandler : INotificationHandler<MovimentacaoRealizadaEvent>
 {

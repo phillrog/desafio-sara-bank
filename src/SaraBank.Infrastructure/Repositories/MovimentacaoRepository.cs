@@ -47,6 +47,24 @@ public class MovimentacaoRepository : IMovimentacaoRepository
 
         return snapshot.Documents.Select(doc => ToModel(doc));
     }
+    
+
+    public async Task<bool> ExisteMovimentacaoParaSagaAsync(Guid sagaId, string tipo)
+    {
+        Query query = _db.Collection(NomeColecao)
+            .WhereEqualTo("SagaId", sagaId.ToString())
+            .WhereEqualTo("Tipo", tipo)
+            .Limit(1);
+
+        QuerySnapshot snapshot = (UnitOfWorkFirestore?.TransacaoAtual != null)
+            ? await UnitOfWorkFirestore.TransacaoAtual.GetSnapshotAsync(query)
+            : await query.GetSnapshotAsync();
+
+        return snapshot.Documents.Count > 0;
+    }
+
+    public async Task<bool> ExisteEstornoParaSagaAsync(Guid sagaId) 
+        => await ExisteMovimentacaoParaSagaAsync(sagaId, "ESTORNO");
 
     private Movimentacao ToModel(DocumentSnapshot doc)
     {
@@ -57,16 +75,15 @@ public class MovimentacaoRepository : IMovimentacaoRepository
         decimal valor = Convert.ToDecimal(dados["Valor"]);
         string tipo = dados.ContainsKey("Tipo") ? dados["Tipo"].ToString() : string.Empty;
         string descricao = dados.ContainsKey("Descricao") ? dados["Descricao"].ToString() : string.Empty;
-        DateTime data;
-        if (dados["Data"] is Google.Cloud.Firestore.Timestamp ts)
+
+        Guid? sagaId = null;
+        if (dados.ContainsKey("SagaId") && dados["SagaId"] != null)
         {
-            data = ts.ToDateTime();
-        }
-        else
-        {
-            data = Convert.ToDateTime(dados["Data"]);
+            sagaId = Guid.Parse(dados["SagaId"].ToString());
         }
 
-        return new Movimentacao(id, contaId, valor, tipo, descricao, data);
+        DateTime data = dados["Data"] is Timestamp ts ? ts.ToDateTime() : Convert.ToDateTime(dados["Data"]);
+
+        return new Movimentacao(id, contaId, valor, tipo, descricao, data, sagaId);
     }
 }

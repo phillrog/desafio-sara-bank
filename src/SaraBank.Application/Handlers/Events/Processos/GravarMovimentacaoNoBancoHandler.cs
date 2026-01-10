@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using SaraBank.Application.Commands;
-using SaraBank.Application.Events;
+
+namespace SaraBank.Application.Handlers.Events;
 
 public class GravarMovimentacaoNoBancoHandler : INotificationHandler<NovaMovimentacaoEvent>
 {

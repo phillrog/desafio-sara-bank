@@ -39,5 +39,49 @@ namespace SaraBank.UnitTests.Domain
             agir.Should().Throw<InvalidOperationException>()
                 .WithMessage("Saldo insuficiente.");
         }
+
+        [Fact]
+        [Trait("Categoria", "Domínio")]
+        public void Nao_Deve_Permitir_Deposito_De_Valor_Negativo_Ou_Zero()
+        {
+            // Arrange
+            var conta = new ContaCorrente(Guid.NewGuid(), 100m);
+
+            // Act
+            Action depositarNegativo = () => conta.Depositar(-10m);
+            Action depositarZero = () => conta.Depositar(0m);
+
+            // Assert
+            depositarNegativo.Should().Throw<ArgumentException>("Valor de depósito deve ser positivo.");
+            depositarZero.Should().Throw<ArgumentException>();
+        }
+
+        [Fact]
+        [Trait("Categoria", "Domínio")]
+        public void Deve_Permitir_Zerar_O_Saldo_Exatamente()
+        {
+            // Arrange
+            var conta = new ContaCorrente(Guid.NewGuid(), 500m);
+
+            // Act
+            conta.Sacar(500m);
+
+            // Assert
+            conta.Saldo.Should().Be(0m, "O saque do valor total do saldo deve resultar em saldo zero.");
+        }
+
+        [Fact]
+        [Trait("Categoria", "Domínio")]
+        public void Creditar_Deve_Aumentar_Saldo_Semelhante_Ao_Depositar()
+        {
+            // Arrange
+            var conta = new ContaCorrente(Guid.NewGuid(), 200m);
+
+            // Act
+            conta.Creditar(100m);
+
+            // Assert
+            conta.Saldo.Should().Be(300m);
+        }
     }
 }

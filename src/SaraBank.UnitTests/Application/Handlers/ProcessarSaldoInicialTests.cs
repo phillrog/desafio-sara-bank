@@ -1,5 +1,6 @@
 ﻿using Moq;
 using SaraBank.Application.Events;
+using SaraBank.Application.Handlers.Events;
 using SaraBank.Application.Interfaces;
 using System.Text.Json;
 

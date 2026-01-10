@@ -12,7 +12,13 @@ public class FirestoreOutboxRepository : IOutboxRepository
     public async Task<IEnumerable<OutboxMessageDTO>> ObterNaoProcessadosAsync(int limite, CancellationToken ct)
     {
         var collection = _db.Collection("Outbox");
-        var query = collection.WhereEqualTo("Processado", false).Limit(limite);
+
+        // Filtra por Processado = false e Tentativas < 5
+        var query = collection
+            .WhereEqualTo("Processado", false)
+            .WhereLessThan("Tentativas", 5)
+            .Limit(limite);
+
         var snapshot = await query.GetSnapshotAsync(ct);
 
         var mensagens = new List<OutboxMessageDTO>();
@@ -21,10 +27,21 @@ public class FirestoreOutboxRepository : IOutboxRepository
             mensagens.Add(new OutboxMessageDTO(
                 doc.Id,
                 doc.GetValue<string>("Payload"),
-                doc.GetValue<string>("Tipo")
+                doc.GetValue<string>("Tipo"),
+                doc.GetValue<int>("Tentativas"),
+                doc.GetValue<bool>("Processado")
             ));
         }
         return mensagens;
+    }
+
+    public async Task IncrementarFalhaAsync(string id, CancellationToken ct)
+    {
+        var docRef = _db.Collection("Outbox").Document(id);
+
+        // Incrementa o contador de tentativas
+        await docRef.UpdateAsync("Tentativas", FieldValue.Increment(1));
+        await docRef.UpdateAsync("UltimaFalhaEm", DateTime.UtcNow);
     }
 
     public async Task MarcarComoProcessadoAsync(string id, CancellationToken ct)
@@ -43,6 +60,7 @@ public class FirestoreOutboxRepository : IOutboxRepository
             { "Payload", message.Payload },
             { "Tipo", message.Tipo },
             { "Processado", false },
+            { "Tentativas", 0 }, // Inicializa o contador
             { "CriadoEm", DateTime.UtcNow }
         };
 

@@ -119,4 +119,61 @@ public class OutboxWorkerTests
         _mockPublisher.Verify(p => p.PublicarAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Exactly(4));
     }
+
+    [Fact]
+    public async Task Deve_Chamar_IncrementarFalha_No_Repositorio_Quando_Polly_Esgotar_Tentativas()
+    {
+        // Arrange
+        const string msgId = "msg-falha-123";
+        var mensagens = new List<OutboxMessageDTO> { new OutboxMessageDTO(msgId, "{}", "Tipo") };
+
+        _mockRepo.Setup(r => r.ObterNaoProcessadosAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(mensagens);
+
+        // Simula falha persistente
+        _mockPublisher.Setup(p => p.PublicarAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                      .ThrowsAsync(new Exception("Erro persistente"));
+
+        var worker = new OutboxWorker(_mockScopeFactory.Object, _mockPublisher.Object, _mockLogger.Object);
+
+        // Act
+        await worker.ProcessarEventosOutbox(_mockRepo.Object, CancellationToken.None);
+
+        // Assert
+        // se falhou tudo, deve incrementar a falha para a mensagem sair da fila principal
+        _mockRepo.Verify(r => r.IncrementarFalhaAsync(msgId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // E não deve marcar como processado
+        _mockRepo.Verify(r => r.MarcarComoProcessadoAsync(msgId, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Deve_Continuar_Processando_Proxima_Mensagem_Se_A_Primeira_Falhar_Definitivamente()
+    {
+        // Arrange
+        var msg1 = new OutboxMessageDTO("1", "{}", "Tipo1");
+        var msg2 = new OutboxMessageDTO("2", "{}", "Tipo2");
+        var mensagens = new List<OutboxMessageDTO> { msg1, msg2 };
+
+        _mockRepo.Setup(r => r.ObterNaoProcessadosAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(mensagens);
+        
+        _mockPublisher.Setup(p => p.PublicarAsync("{}", "Tipo1", It.IsAny<CancellationToken>()))
+                      .ThrowsAsync(new Exception("Falha na primeira"));
+
+        _mockPublisher.Setup(p => p.PublicarAsync("{}", "Tipo2", It.IsAny<CancellationToken>()))
+                      .ReturnsAsync("SUCCESS");
+
+        var worker = new OutboxWorker(_mockScopeFactory.Object, _mockPublisher.Object, _mockLogger.Object);
+
+        // Act
+        await worker.ProcessarEventosOutbox(_mockRepo.Object, CancellationToken.None);
+
+        // Assert
+        // A primeira deve ter incrementado falha
+        _mockRepo.Verify(r => r.IncrementarFalhaAsync("1", It.IsAny<CancellationToken>()), Times.Once);
+
+        // A segunda marca como processada com sucesso
+        _mockRepo.Verify(r => r.MarcarComoProcessadoAsync("2", It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
