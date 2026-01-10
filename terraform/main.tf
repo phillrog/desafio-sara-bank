@@ -11,6 +11,27 @@ resource "google_project_service" "pubsub" {
   disable_on_destroy = false
 }
 
+# Ativa a API do Artifact Registry
+resource "google_project_service" "artifact_registry" {
+  service            = "artifactregistry.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Ativa a API do Cloud Run
+resource "google_project_service" "cloud_run" {
+  service            = "run.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Cria o Repositório no Artifact Registry
+resource "google_artifact_registry_repository" "sarabank_repo" {
+  depends_on    = [google_project_service.artifact_registry]
+  location      = "us-central1"
+  repository_id = "sarabank-repo"
+  description   = "Repositorio Docker para o SaraBank"
+  format        = "DOCKER"
+}
+
 # =================================================================
 # 2. CONFIGURAÇÃO DO BANCO DE DADOS FIRESTORE (MODO NATIVO)
 # =================================================================

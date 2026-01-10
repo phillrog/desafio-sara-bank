@@ -2,7 +2,8 @@
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 # O Cloud Run usa a porta 8080 por padrão
-EXPOSE 5001
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
 
 # Estágio de Build
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
