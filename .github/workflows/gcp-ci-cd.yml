@@ -100,7 +100,6 @@ jobs:
           Firebase__ApiKey=${{ github.event.inputs.firebase_api_key }}
           ASPNETCORE_ENVIRONMENT=Development
           ASPNETCORE_URLS=http://0.0.0.0:8080
-          PORT=8080          
         flags: '--allow-unauthenticated'
 
     - name: Exibir Link do Swagger
