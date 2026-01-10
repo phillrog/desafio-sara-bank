@@ -27,6 +27,22 @@ public class FirestoreUnitOfWork : IUnitOfWork
         });
     }
 
+    public async Task ExecutarAsync(Func<Task> acao)
+    {
+        await _db.RunTransactionAsync(async transaction =>
+        {
+            _transacaoAtual.Value = transaction;
+            try
+            {
+                await acao();
+            }
+            finally
+            {
+                _transacaoAtual.Value = null;
+            }
+        });
+    }
+
     public async Task AdicionarAoOutboxAsync(string payload, string tipo)
     {
         var docRef = _db.Collection("Outbox").Document();

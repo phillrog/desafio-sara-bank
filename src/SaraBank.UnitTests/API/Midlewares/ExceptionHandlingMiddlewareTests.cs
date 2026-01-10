@@ -8,7 +8,7 @@ using SaraBank.API.Middleware;
 using System.Text.Json;
 using Xunit;
 
-namespace SaraBank.Tests.API.Middlewares;
+namespace SaraBank.UnitTests.API.Middlewares;
 
 public class ExceptionHandlingMiddlewareTests
 {

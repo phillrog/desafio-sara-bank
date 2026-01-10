@@ -1,4 +1,4 @@
-# =================================================================
+﻿# =================================================================
 # 1. ATIVAÇÃO DAS APIS DO GOOGLE CLOUD
 # =================================================================
 resource "google_project_service" "firestore" {
@@ -63,9 +63,10 @@ resource "google_firestore_index" "outbox_index" {
 }
 
 # =================================================================
-# 4. PUB/SUB - TÓPICOS (AS ESTEIRAS DE EVENTOS)
+# 4. PUB/SUB - TÓPICOS 
 # =================================================================
 
+# Mantemos os tópicos existentes...
 resource "google_pubsub_topic" "usuarios_topic" {
   name    = "sara-bank-usuarios"
   project = var.project_id
@@ -80,15 +81,50 @@ resource "google_pubsub_topic" "movimentacoes_topic" {
   depends_on = [google_project_service.pubsub]
 }
 
-resource "google_pubsub_topic" "transferencias_topic" {
-  name    = "sara-bank-transferencias"
+# --- TÓPICOS DA SAGA ---
+
+# 1. Início da Saga (API -> Worker de Débito)
+resource "google_pubsub_topic" "transferencias_iniciadas_topic" {
+  name    = "sara-bank-transferencias-iniciadas"
   project = var.project_id
-  labels  = { app = "sarabank", context = "transfers" }
+  labels  = { app = "sarabank", saga_step = "started" }
+  depends_on = [google_project_service.pubsub]
+}
+
+# 2. Próximo Passo (Worker de Débito -> Worker de Crédito)
+resource "google_pubsub_topic" "transferencias_debitadas_topic" {
+  name    = "sara-bank-transferencias-debitadas"
+  project = var.project_id
+  labels  = { app = "sarabank", saga_step = "debited" }
+  depends_on = [google_project_service.pubsub]
+}
+
+# 3. Caminho de Compensação (Worker de Crédito -> Worker de Estorno)
+resource "google_pubsub_topic" "transferencias_compensar_topic" {
+  name    = "sara-bank-transferencias-compensar"
+  project = var.project_id
+  labels  = { app = "sarabank", saga_step = "compensate" }
+  depends_on = [google_project_service.pubsub]
+}
+
+# 4. Falha Crítica de Negócio (ex: Saldo Insuficiente na Origem)
+resource "google_pubsub_topic" "transferencias_erros_topic" {
+  name    = "sara-bank-transferencias-erros"
+  project = var.project_id
+  labels  = { app = "sarabank", saga_step = "failed" }
+  depends_on = [google_project_service.pubsub]
+}
+
+# 5. Finalização com Sucesso (Auditoria/Notificação)
+resource "google_pubsub_topic" "transferencias_concluidas_topic" {
+  name    = "sara-bank-transferencias-concluidas"
+  project = var.project_id
+  labels  = { app = "sarabank", saga_step = "finished" }
   depends_on = [google_project_service.pubsub]
 }
 
 # =================================================================
-# 5. PUB/SUB - ASSINATURAS (OS CONSUMIDORES)
+# 5. PUB/SUB - CONSUMIDORES
 # =================================================================
 
 resource "google_pubsub_subscription" "usuarios_sub" {
@@ -105,9 +141,44 @@ resource "google_pubsub_subscription" "movimentacoes_sub" {
   ack_deadline_seconds = 20
 }
 
-resource "google_pubsub_subscription" "transferencias_sub" {
-  name                 = "sara-bank-transferencias-sub"
-  topic                = google_pubsub_topic.transferencias_topic.name
+# --- SAGA ---
+
+# Consumer que realizará o DÉBITO
+resource "google_pubsub_subscription" "transferencias_iniciadas_sub" {
+  name                 = "sara-bank-transferencias-iniciadas-sub"
+  topic                = google_pubsub_topic.transferencias_iniciadas_topic.name
   project              = var.project_id
-  ack_deadline_seconds = 30 # Mais tempo para processar as duas pernas da transferência
+  ack_deadline_seconds = 30 
+}
+
+# Consumer que realizará o CRÉDITO
+resource "google_pubsub_subscription" "transferencias_debitadas_sub" {
+  name                 = "sara-bank-transferencias-debitadas-sub"
+  topic                = google_pubsub_topic.transferencias_debitadas_topic.name
+  project              = var.project_id
+  ack_deadline_seconds = 30
+}
+
+# Consumer que realizará o ESTORNO (Compensação)
+resource "google_pubsub_subscription" "transferencias_compensar_sub" {
+  name                 = "sara-bank-transferencias-compensar-sub"
+  topic                = google_pubsub_topic.transferencias_compensar_topic.name
+  project              = var.project_id
+  ack_deadline_seconds = 30
+}
+
+# Subscription para monitorar cancelamentos (pode disparar Push Notification de erro)
+resource "google_pubsub_subscription" "transferencias_erros_sub" {
+  name                 = "sara-bank-transferencias-erros-sub"
+  topic                = google_pubsub_topic.transferencias_erros_topic.name
+  project              = var.project_id
+  ack_deadline_seconds = 20
+}
+
+# Subscription para monitorar conclusões (pode disparar Comprovante por e-mail)
+resource "google_pubsub_subscription" "transferencias_concluidas_sub" {
+  name                 = "sara-bank-transferencias-concluidas-sub"
+  topic                = google_pubsub_topic.transferencias_concluidas_topic.name
+  project              = var.project_id
+  ack_deadline_seconds = 30
 }

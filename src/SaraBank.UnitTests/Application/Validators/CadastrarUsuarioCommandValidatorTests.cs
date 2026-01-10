@@ -3,7 +3,7 @@ using Moq;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Validators;
 
-namespace SaraBank.Tests.Application.Validators;
+namespace SaraBank.UnitTests.Application.Validators;
 
 public class CadastrarUsuarioCommandValidatorTests
 {

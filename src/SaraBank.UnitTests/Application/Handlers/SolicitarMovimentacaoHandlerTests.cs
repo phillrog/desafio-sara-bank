@@ -7,7 +7,7 @@ using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Application.Interfaces;
 
-namespace SaraBank.Tests.Application.Handlers;
+namespace SaraBank.UnitTests.Application.Handlers;
 
 public class SolicitarMovimentacaoHandlerTests
 {

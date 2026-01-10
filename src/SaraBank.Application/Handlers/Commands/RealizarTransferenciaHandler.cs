@@ -1,45 +1,65 @@
-﻿using MediatR;
+﻿using FluentValidation;
+using FluentValidation.Results;
+using MediatR;
 using SaraBank.Application.Commands;
+using SaraBank.Application.Events;
 using SaraBank.Application.Interfaces;
-using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
-using FluentValidation;
+using System.Text.Json;
 
 namespace SaraBank.Application.Handlers.Commands;
 
 public class RealizarTransferenciaHandler : IRequestHandler<RealizarTransferenciaCommand, bool>
 {
     private readonly IContaRepository _contaRepository;
-    private readonly IMovimentacaoRepository _movimentacaoRepository; // Adicionado
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IMovimentacaoRepository _movimentacaoRepository;
+    private readonly IUnitOfWork _uow;
 
     public RealizarTransferenciaHandler(
         IContaRepository contaRepository,
         IMovimentacaoRepository movimentacaoRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork uow)
     {
         _contaRepository = contaRepository;
         _movimentacaoRepository = movimentacaoRepository;
-        _unitOfWork = unitOfWork;
+        _uow = uow;
     }
 
     public async Task<bool> Handle(RealizarTransferenciaCommand request, CancellationToken ct)
-    {        
-        return await _unitOfWork.ExecutarAsync(async () =>
+    {
+        var origem = await _contaRepository.ObterPorIdAsync(request.ContaOrigemId);
+        var destino = await _contaRepository.ObterPorIdAsync(request.ContaDestinoId);
+
+        if (origem == null || destino == null)
         {
-            var origem = await _contaRepository.ObterPorIdAsync(request.ContaOrigemId);
-            var destino = await _contaRepository.ObterPorIdAsync(request.ContaDestinoId);
+            throw new ValidationException(new[] {
+                new ValidationFailure("Contas", "Uma ou ambas as contas não foram encontradas.")
+            });
+        }
 
-            origem.Debitar(request.Valor);
-            destino.Creditar(request.Valor);
+        return await _uow.ExecutarAsync(async () =>
+        {
+            var sagaId = Guid.NewGuid(); 
 
-            await _contaRepository.AtualizarAsync(origem);
-            await _contaRepository.AtualizarAsync(destino);
+            var evento = new TransferenciaIniciadaEvent(
+                sagaId,
+                request.ContaOrigemId,
+                request.ContaDestinoId,
+                request.Valor
+            );
 
-            await _movimentacaoRepository.AdicionarAsync(new Movimentacao(origem.Id, request.Valor, "DEBITO", "Transferência"));
-            await _movimentacaoRepository.AdicionarAsync(new Movimentacao(destino.Id, request.Valor, "CREDITO", "Recebido"));
+            var envelope = new
+            {
+                TipoEvento = "TransferenciaIniciada",
+                SagaId = sagaId,
+                Payload = JsonSerializer.Serialize(evento)
+            };
 
-            await _unitOfWork.AdicionarAoOutboxAsync("...", "TransferenciaRealizada");
+            // Salva no Outbox o primeiro passo da Saga
+            await _uow.AdicionarAoOutboxAsync(
+                JsonSerializer.Serialize(envelope),
+                "TransferenciaIniciada"
+            );
 
             return true;
         });

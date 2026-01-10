@@ -64,7 +64,11 @@ public static class DependencyInjectionConfig
             {
                 { "UsuarioCadastrado", "sara-bank-usuarios" },
                 { "NovaMovimentacao", "sara-bank-movimentacoes" },
-                { "TransferenciaEntreContas", "sara-bank-transferencias" }
+                { "TransferenciaIniciada", "sara-bank-transferencias-iniciadas" },
+                { "TransferenciaCancelada", "sara-bank-transferencias-erros" },
+                { "SaldoDebitado", "sara-bank-transferencias-debitadas" },
+                { "FalhaNoCredito", "sara-bank-transferencias-compensar" },
+                { "TransferenciaConcluida", "sara-bank-transferencias-concluidas" }
             };
             return new SaraBank.Infrastructure.Services.Publisher(projectId, mapeamento, logger);
         });
@@ -84,7 +88,8 @@ public static class DependencyInjectionConfig
         services.AddValidatorsFromAssembly(AppDomain.CurrentDomain.Load("SaraBank.Application"));
 
         // Registra o Behavior no MediatR
-        services.AddMediatR(cfg => {
+        services.AddMediatR(cfg =>
+        {
             cfg.RegisterServicesFromAssembly(AppDomain.CurrentDomain.Load("SaraBank.Application"));
 
             // Checa se é duplicado (Idempotência)
@@ -94,6 +99,8 @@ public static class DependencyInjectionConfig
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         });
 
+        #region WORKERS
+        
         // --- BACKGROUND SERVICES (WORKERS) ---
         // Worker de Usuários
         services.AddHostedService<UsuarioConsumerService>(sp =>
@@ -101,7 +108,6 @@ public static class DependencyInjectionConfig
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var logger = sp.GetRequiredService<ILogger<UsuarioConsumerService>>();
 
-            // Criar o client específico para a subscription de usuários
             var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, "sara-bank-usuarios-sub");
             var client = SubscriberClient.Create(subscriptionName);
 
@@ -114,12 +120,60 @@ public static class DependencyInjectionConfig
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var logger = sp.GetRequiredService<ILogger<MovimentacaoConsumerService>>();
 
-            // Criar o client específico para a subscription de movimentações
             var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, "sara-bank-movimentacoes-sub");
             var client = SubscriberClient.Create(subscriptionName);
 
             return new MovimentacaoConsumerService(sp, client, logger);
         });
+
+        // Worker de TransferenciaIniciada
+        services.AddHostedService<TransferenciaIniciadaConsumerService>(sp =>
+        {
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            var logger = sp.GetRequiredService<ILogger<TransferenciaIniciadaConsumerService>>();
+
+            var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, "sara-bank-transferencias-iniciadas-sub");
+            var client = SubscriberClient.Create(subscriptionName);
+
+            return new TransferenciaIniciadaConsumerService(sp, client, logger);
+        });
+
+        // Worker de SaldoDebitado
+        services.AddHostedService<SaldoDebitadoConsumerService>(sp =>
+        {
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            var logger = sp.GetRequiredService<ILogger<SaldoDebitadoConsumerService>>();
+
+            var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, "sara-bank-transferencias-debitadas-sub");
+            var client = SubscriberClient.Create(subscriptionName);
+
+            return new SaldoDebitadoConsumerService(sp, client, logger);
+        });
+
+        // Worker de Compensação (Estorno)
+        services.AddHostedService<FalhaNoCreditoConsumerService>(sp =>
+        {
+            var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+            var logger = sp.GetRequiredService<ILogger<FalhaNoCreditoConsumerService>>();
+
+            var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, "sara-bank-transferencias-compensar-sub");
+            var client = SubscriberClient.Create(subscriptionName);
+
+            return new FalhaNoCreditoConsumerService(sp, client, logger);
+        });
+
+        // Worker de Conclusão (Sucesso Total)
+        services.AddHostedService<TransferenciaConcluidaConsumerService>(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<TransferenciaConcluidaConsumerService>>();
+
+            var subscriptionName = SubscriptionName.FromProjectSubscription(projectId, "sara-bank-transferencias-concluidas-sub");
+            var client = SubscriberClient.Create(subscriptionName);
+
+            return new TransferenciaConcluidaConsumerService(sp, client, logger);
+        });
+
+        #endregion
 
         // Motor (Outbox)
         services.AddHostedService<OutboxWorker>();

@@ -5,7 +5,7 @@ using Moq;
 using SaraBank.Application.Behaviors;
 using Xunit;
 
-namespace SaraBank.Tests.Application.Behaviors;
+namespace SaraBank.UnitTests.Application.Behaviors;
 
 public class ValidationBehaviorTests
 {
