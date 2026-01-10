@@ -37,9 +37,8 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
-    - name: Restaurar Dependências
-      # Aponta para o projeto principal para garantir o restore de toda a árvore src
-      run: dotnet restore src/SaraBank.API/SaraBank.API.csproj
+    - name: Restaurar Dependências      
+      run: dotnet restore src/
 
     - name: Executar Testes
       # Procura e executa todos os projetos de teste dentro da pasta src/
