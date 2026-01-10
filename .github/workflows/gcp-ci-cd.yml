@@ -1,17 +1,19 @@
 name: CI/CD SaraBank
+
 on:
+  # Disparo manual via interface do GitHub
   workflow_dispatch:
     inputs:
       gcp_sa_key:
-        description: 'Chave JSON do GCP'
+        description: 'Conteúdo completo da Chave JSON da Service Account do GCP'
         required: true
         type: string
       firebase_api_key:
-        description: 'Firebase API Key'
+        description: 'Chave de API do Firebase (Web API Key)'
         required: true
         type: string
       project_id:
-        description: 'Nome do projeto (ex: sara-bank)'
+        description: 'ID do seu projeto no Google Cloud (ex: sara-bank)'
         required: true
         type: string
 
@@ -21,10 +23,13 @@ env:
   REPO: 'sarabank-repo'
 
 jobs:
+  # ---------------------------------------------------------
+  # JOB 1: Integração Contínua (Testes)
+  # ---------------------------------------------------------
   test:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
+    - name: Checkout Código
       uses: actions/checkout@v4
 
     - name: Setup .NET
@@ -32,48 +37,59 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
-    - name: Restore
+    - name: Restaurar Dependências
+      # Aponta para o projeto principal para garantir o restore de toda a árvore src
       run: dotnet restore src/SaraBank.API/SaraBank.API.csproj
 
-    - name: Run Tests
-      run: dotnet test --no-restore --verbosity normal
+    - name: Executar Testes
+      # Procura e executa todos os projetos de teste dentro da pasta src/
+      run: dotnet test src/ --no-restore --verbosity normal
 
+  # ---------------------------------------------------------
+  # JOB 2: Entrega Contínua (Provisionamento e Deploy)
+  # ---------------------------------------------------------
   deploy:
-    needs: test 
+    needs: test # Só inicia se os testes passarem
     runs-on: ubuntu-latest
-    environment: Production
+    environment: Production # Ativa a necessidade de sua aprovação manual no GitHub
     
     steps:
-    - name: Checkout
+    - name: Checkout Código
       uses: actions/checkout@v4
 
-    - name: Google Auth
+    - name: Autenticar no Google Cloud
       uses: 'google-github-actions/auth@v2'
       with:
         credentials_json: '${{ github.event.inputs.gcp_sa_key }}'
 
-    - name: Docker Auth
+    - name: Configurar Docker para Artifact Registry
       run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-    - name: Build and Push Docker Image
+    - name: Build e Push da Imagem Docker
       run: |
-        # Corrigido: Acessando o input corretamente sem chaves aninhadas
         DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ github.event.inputs.project_id }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}"
+        
+        # Build usando o contexto na raiz e apontando o Dockerfile na pasta da API
         docker build -t $DOCKER_TAG -f src/SaraBank.API/Dockerfile .
         docker push $DOCKER_TAG
 
-    - name: Deploy to Cloud Run
+    - name: Deploy no Cloud Run
       id: deploy_step
       uses: 'google-github-actions/deploy-cloudrun@v2'
       with:
         service: ${{ env.SERVICE }}
         region: ${{ env.REGION }}
-        # Corrigido: Sintaxe da imagem ajustada
         image: ${{ env.REGION }}-docker.pkg.dev/${{ github.event.inputs.project_id }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
+        # Variáveis de ambiente injetadas no container
         env_vars: |
           Firebase__ApiKey=${{ github.event.inputs.firebase_api_key }}
           ASPNETCORE_ENVIRONMENT=Development
         flags: '--allow-unauthenticated'
 
-    - name: Link do Swagger
-      run: echo "Sucesso! Acesse o Swagger em ${{ steps.deploy_step.outputs.url }}/swagger"
+    - name: Exibir Link do Swagger
+      # Imprime o link final facilitando o seu clique para teste
+      run: |
+        echo "===================================================="
+        echo "DEPOIS DE APROVAR, ACESSE O SWAGGER EM:"
+        echo "${{ steps.deploy_step.outputs.url }}/swagger"
+        echo "===================================================="
