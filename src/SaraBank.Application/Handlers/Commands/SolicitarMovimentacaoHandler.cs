@@ -3,6 +3,7 @@ using FluentValidation.Results;
 using MediatR;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Interfaces;
+using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using System.Text.Json;
 
@@ -12,11 +13,15 @@ public class SolicitarMovimentacaoHandler : IRequestHandler<SolicitarMovimentaca
 {
     private readonly IUnitOfWork _uow;
     private readonly IContaRepository _contaRepository;
+    private readonly IOutboxRepository _outboxRepository;
 
-    public SolicitarMovimentacaoHandler(IUnitOfWork uow, IContaRepository contaRepository)
+    public SolicitarMovimentacaoHandler(IUnitOfWork uow, 
+        IContaRepository contaRepository,
+        IOutboxRepository outboxRepository)
     {
         _uow = uow;
         _contaRepository = contaRepository;
+        _outboxRepository = outboxRepository;
     }
 
     public async Task<bool> Handle(SolicitarMovimentacaoCommand request, CancellationToken ct)
@@ -48,10 +53,14 @@ public class SolicitarMovimentacaoHandler : IRequestHandler<SolicitarMovimentaca
                 Payload = JsonSerializer.Serialize(eventoIntegracao)
             };
 
-            await _uow.AdicionarAoOutboxAsync(
+            var outboxMessage = new OutboxMessage(
+                Guid.NewGuid(),
                 JsonSerializer.Serialize(envelope),
-                "NovaMovimentacao"
+                "NovaMovimentacao",
+                "sara-bank-movimentacoes"
             );
+
+            await _outboxRepository.AdicionarAsync(outboxMessage, ct);
 
             return true;
         });

@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using SaraBank.Application.Events;
 using SaraBank.Application.Interfaces;
+using SaraBank.Domain.Entities;
 using System.Text.Json;
 
 namespace SaraBank.Application.Handlers.Events;
@@ -8,10 +9,13 @@ namespace SaraBank.Application.Handlers.Events;
 public class ProcessarSaldoInicialHandler : INotificationHandler<UsuarioCadastradoEvent>
 {
     private readonly IUnitOfWork _uow;
+    private readonly IOutboxRepository _outboxRepository;
 
-    public ProcessarSaldoInicialHandler(IUnitOfWork uow)
+    public ProcessarSaldoInicialHandler(IUnitOfWork uow,
+        IOutboxRepository outboxRepository)
     {
         _uow = uow;
+        _outboxRepository = outboxRepository;
     }
 
     public async Task Handle(UsuarioCadastradoEvent notification, CancellationToken ct)
@@ -30,10 +34,15 @@ public class ProcessarSaldoInicialHandler : INotificationHandler<UsuarioCadastra
                 TipoEvento = "NovaMovimentacao",
                 Payload = JsonSerializer.Serialize(evento)
             };
+            
+            var outboxMessage = new OutboxMessage(
+                Guid.NewGuid(),
+                JsonSerializer.Serialize(envelope),
+                "NovaMovimentacao",
+                "sara-bank-movimentacoes"
+            );
 
-            // 2. Grava no Outbox em vez de enviar direto
-            // O Outbox Worker vai ler isso e jogar no tópico 'sara-bank-movimentacoes'
-            await _uow.AdicionarAoOutboxAsync(JsonSerializer.Serialize(envelope), "NovaMovimentacao");
+            await _outboxRepository.AdicionarAsync(outboxMessage, ct);
         }
     }
 }

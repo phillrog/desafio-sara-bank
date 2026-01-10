@@ -2,17 +2,13 @@
 using Google.Cloud.Firestore;
 using Google.Cloud.PubSub.V1;
 using MediatR;
-using Microsoft.Extensions.DependencyInjection;
 using SaraBank.Application.Behaviors;
-using SaraBank.Application.Handlers.Commands;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Infrastructure.Persistence;
 using SaraBank.Infrastructure.Persistence.Converters;
 using SaraBank.Infrastructure.Repositories;
-using SaraBank.Infrastructure.Services;
 using SaraBank.Infrastructure.Workers;
-using System.Reflection;
 
 namespace SaraBank.API.Configurations;
 

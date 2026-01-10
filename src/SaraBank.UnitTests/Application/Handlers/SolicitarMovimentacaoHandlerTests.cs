@@ -6,6 +6,7 @@ using SaraBank.Application.Handlers.Commands;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using SaraBank.Application.Interfaces;
+using Xunit;
 
 namespace SaraBank.UnitTests.Application.Handlers;
 
@@ -13,18 +14,22 @@ public class SolicitarMovimentacaoHandlerTests
 {
     private readonly Mock<IContaRepository> _contaRepositoryMock;
     private readonly Mock<IUnitOfWork> _uowMock;
+    private readonly Mock<IOutboxRepository> _outboxRepositoryMock;
     private readonly SolicitarMovimentacaoHandler _handler;
 
     public SolicitarMovimentacaoHandlerTests()
     {
         _contaRepositoryMock = new Mock<IContaRepository>();
         _uowMock = new Mock<IUnitOfWork>();
+        _outboxRepositoryMock = new Mock<IOutboxRepository>();
 
-        // Ajuste do Mock para executar a função interna do Handler
         _uowMock.Setup(u => u.ExecutarAsync(It.IsAny<Func<Task<bool>>>()))
-                .Returns((Func<Task<bool>> func) => func());
+                        .Returns((Func<Task<bool>> func) => func());
 
-        _handler = new SolicitarMovimentacaoHandler(_uowMock.Object, _contaRepositoryMock.Object);
+        _handler = new SolicitarMovimentacaoHandler(
+            _uowMock.Object,
+            _contaRepositoryMock.Object,
+            _outboxRepositoryMock.Object);
     }
 
     [Fact]
@@ -43,6 +48,9 @@ public class SolicitarMovimentacaoHandlerTests
         // Assert
         await act.Should().ThrowAsync<ValidationException>()
             .Where(e => e.Errors.Any(f => f.PropertyName == "ContaId"));
+
+        // Garante que nada foi para o Outbox se a conta não existe
+        _outboxRepositoryMock.Verify(r => r.AdicionarAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -61,7 +69,13 @@ public class SolicitarMovimentacaoHandlerTests
 
         // Assert
         resultado.Should().BeTrue();
-        _uowMock.Verify(u => u.AdicionarAoOutboxAsync(It.IsAny<string>(), "NovaMovimentacao"), Times.Once);
+
+        // Verifica o repositório de Outbox e o tópico de movimentações
+        _outboxRepositoryMock.Verify(r => r.AdicionarAsync(
+            It.Is<OutboxMessage>(m =>
+                m.Tipo == "NovaMovimentacao" &&
+                m.Topico == "sara-bank-movimentacoes"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -80,6 +94,12 @@ public class SolicitarMovimentacaoHandlerTests
 
         // Assert
         resultado.Should().BeTrue();
-        _uowMock.Verify(u => u.AdicionarAoOutboxAsync(It.IsAny<string>(), "NovaMovimentacao"), Times.Once);
+
+        // Verifica o repositório de Outbox
+        _outboxRepositoryMock.Verify(r => r.AdicionarAsync(
+            It.Is<OutboxMessage>(m =>
+                m.Tipo == "NovaMovimentacao" &&
+                m.Topico == "sara-bank-movimentacoes"),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

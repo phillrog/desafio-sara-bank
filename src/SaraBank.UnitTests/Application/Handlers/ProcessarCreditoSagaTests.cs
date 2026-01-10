@@ -1,10 +1,12 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 using SaraBank.Application.Events;
 using SaraBank.Application.Handlers.Events;
 using SaraBank.Application.Interfaces;
 using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
+using Xunit;
 
 namespace SaraBank.UnitTests.Handlers;
 
@@ -13,6 +15,7 @@ public class ProcessarCreditoSagaHandlerTests
     private readonly Mock<IUnitOfWork> _uowMock;
     private readonly Mock<IContaRepository> _contaRepoMock;
     private readonly Mock<IMovimentacaoRepository> _movRepoMock;
+    private readonly Mock<IOutboxRepository> _outboxRepoMock;
     private readonly Mock<ILogger<ProcessarCreditoSagaHandler>> _loggerMock;
     private readonly ProcessarCreditoSagaHandler _handler;
 
@@ -21,17 +24,18 @@ public class ProcessarCreditoSagaHandlerTests
         _uowMock = new Mock<IUnitOfWork>();
         _contaRepoMock = new Mock<IContaRepository>();
         _movRepoMock = new Mock<IMovimentacaoRepository>();
+        _outboxRepoMock = new Mock<IOutboxRepository>();
         _loggerMock = new Mock<ILogger<ProcessarCreditoSagaHandler>>();
 
-        // Setup para o Unit of Work sempre executar o callback passado a ele
         _uowMock.Setup(x => x.ExecutarAsync<bool>(It.IsAny<Func<Task<bool>>>()))
-                .Returns<Func<Task<bool>>>(async (func) => await func());
+            .Returns<Func<Task<bool>>>(async (func) => await func());
 
         _handler = new ProcessarCreditoSagaHandler(
             _uowMock.Object,
             _contaRepoMock.Object,
             _movRepoMock.Object,
-            _loggerMock.Object);
+            _loggerMock.Object,
+            _outboxRepoMock.Object);
     }
 
     [Fact]
@@ -46,28 +50,20 @@ public class ProcessarCreditoSagaHandlerTests
             Valor: 100.00m
         );
 
-        // conta destino NÃO foi encontrada
         _contaRepoMock.Setup(r => r.ObterPorIdAsync(eventoDebito.ContaDestinoId))
-                      .ReturnsAsync((ContaCorrente)null);
+                      .ReturnsAsync((ContaCorrente?)null);
+
+        OutboxMessage? mensagemReal = null;
+        _outboxRepoMock.Setup(r => r.AdicionarAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()))
+                       .Callback<OutboxMessage, CancellationToken>((m, ct) => mensagemReal = m);
 
         // Act
         await _handler.Handle(eventoDebito, CancellationToken.None);
 
         // Assert
-        // ocorreu "FalhaNoCredito"
-        _uowMock.Verify(u => u.AdicionarAoOutboxAsync(
-            It.Is<string>(s => s.Contains("FalhaNoCredito")),
-            "FalhaNoCredito"
-        ), Times.Once);
-
-        _loggerMock.Verify(
-            x => x.Log(
-                LogLevel.Error,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString().Contains(sagaId.ToString())),
-                It.IsAny<Exception>(),
-                It.Is<Func<It.IsAnyType, Exception, string>>((v, t) => true)),
-            Times.Once);
+        mensagemReal.Should().NotBeNull("O Handler deveria ter gerado a mensagem de compensação.");
+        mensagemReal!.Tipo.Should().Be("FalhaNoCredito");
+        mensagemReal!.Topico.Should().Be("sara-bank-transferencias-compensar");
     }
 
     [Fact]
@@ -77,7 +73,6 @@ public class ProcessarCreditoSagaHandlerTests
         var sagaId = Guid.NewGuid();
         var evento = new SaldoDebitadoEvent(sagaId, Guid.NewGuid(), Guid.NewGuid(), 100m);
 
-        // Simula que a movimentação de CRÉDITO já existe no banco para esta Saga
         _movRepoMock.Setup(m => m.ExisteMovimentacaoParaSagaAsync(sagaId, "CREDITO"))
                     .ReturnsAsync(true);
 
@@ -85,10 +80,8 @@ public class ProcessarCreditoSagaHandlerTests
         await _handler.Handle(evento, CancellationToken.None);
 
         // Assert
-        // Não deve nem tentar buscar a conta destino, pois já sabe que processou
         _contaRepoMock.Verify(r => r.ObterPorIdAsync(It.IsAny<Guid>()), Times.Never);
-
-        // Não deve adicionar nada ao Outbox nem atualizar conta
+        _outboxRepoMock.Verify(r => r.AdicionarAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
         _contaRepoMock.Verify(r => r.AtualizarAsync(It.IsAny<ContaCorrente>()), Times.Never);
 
         _loggerMock.Verify(

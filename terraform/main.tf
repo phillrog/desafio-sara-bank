@@ -20,7 +20,6 @@ resource "google_firestore_database" "database" {
   location_id = var.region
   type        = "FIRESTORE_NATIVE"
 
-  # O erro 400 sugere aguardar a propagação da exclusão/ativação
   depends_on = [google_project_service.firestore]
 }
 
@@ -28,8 +27,10 @@ resource "google_firestore_database" "database" {
 # 3. ÍNDICES COMPOSTOS (ESSENCIAIS PARA O CÓDIGO .NET)
 # =================================================================
 
-# Índice para Extrato: .WhereEqualTo("ContaId", id).OrderByDescending("Data")
-resource "google_firestore_index" "movimentacoes_index" {
+# --- COLEÇÃO: Movimentacoes ---
+
+# Consulta: .WhereEqualTo("ContaId", id).OrderByDescending("Data")
+resource "google_firestore_index" "movimentacoes_extrato_index" {
   project    = var.project_id
   collection = "Movimentacoes"
 
@@ -45,8 +46,27 @@ resource "google_firestore_index" "movimentacoes_index" {
   depends_on = [google_firestore_database.database]
 }
 
-# Índice para o Worker do Outbox: .WhereEqualTo("Processado", false).OrderBy("CriadoEm")
-resource "google_firestore_index" "outbox_index" {
+# Consulta: .WhereEqualTo("SagaId", id).WhereEqualTo("Tipo", tipo)
+resource "google_firestore_index" "movimentacoes_saga_idempotencia_index" {
+  project    = var.project_id
+  collection = "Movimentacoes"
+
+  fields {
+    field_path = "SagaId"
+    order      = "ASCENDING"
+  }
+
+  fields {
+    field_path = "Tipo"
+    order      = "ASCENDING"
+  }
+  depends_on = [google_firestore_database.database]
+}
+
+# --- COLEÇÃO: Outbox ---
+
+# Campos: Processado (ASC), Tentativas (ASC), __name__ (ASC)
+resource "google_firestore_index" "outbox_worker_index" {
   project    = var.project_id
   collection = "Outbox"
 
@@ -56,9 +76,11 @@ resource "google_firestore_index" "outbox_index" {
   }
 
   fields {
-    field_path = "CriadoEm"
+    field_path = "Tentativas"
     order      = "ASCENDING"
   }
+
+  # Removido CriadoEm para bater com a query exata do log de erro
   depends_on = [google_firestore_database.database]
 }
 

@@ -46,7 +46,7 @@ public class ContaRepository : IContaRepository
             : await docRef.GetSnapshotAsync();
 
         if (!snapshot.Exists)
-            throw new Exception("Conta corrente não encontrada no SARA Bank.");
+            return null;
 
         var dados = snapshot.ToDictionary();
 

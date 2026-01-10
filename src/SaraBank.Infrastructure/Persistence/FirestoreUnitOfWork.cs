@@ -8,7 +8,10 @@ public class FirestoreUnitOfWork : IUnitOfWork
     private readonly FirestoreDb _db;
     private readonly AsyncLocal<Transaction?> _transacaoAtual = new();
 
-    public FirestoreUnitOfWork(FirestoreDb db) => _db = db;   
+    public FirestoreUnitOfWork(FirestoreDb db)
+    {
+        _db = db;
+    }
     public Transaction? TransacaoAtual => _transacaoAtual.Value;
 
     public async Task<T> ExecutarAsync<T>(Func<Task<T>> acao)
@@ -41,22 +44,5 @@ public class FirestoreUnitOfWork : IUnitOfWork
                 _transacaoAtual.Value = null;
             }
         });
-    }
-
-    public async Task AdicionarAoOutboxAsync(string payload, string tipo)
-    {
-        var docRef = _db.Collection("Outbox").Document();
-        var data = new
-        {
-            Payload = payload,
-            Tipo = tipo,
-            Processado = false,
-            DataCriacao = Timestamp.GetCurrentTimestamp()
-        };
-
-        if (_transacaoAtual.Value != null)
-            _transacaoAtual.Value.Set(docRef, data);
-        else
-            await docRef.SetAsync(data);
     }
 }

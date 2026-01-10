@@ -1,18 +1,12 @@
-﻿namespace SaraBank.Application.Interfaces
+﻿using SaraBank.Domain.Entities;
+
+namespace SaraBank.Application.Interfaces
 {
     public interface IOutboxRepository
     {
-        Task<IEnumerable<OutboxMessageDTO>> ObterNaoProcessadosAsync(int limite, CancellationToken ct);
-        Task MarcarComoProcessadoAsync(string id, CancellationToken ct);
-        Task AdicionarAsync(OutboxMessageDTO message, CancellationToken ct);
-        Task IncrementarFalhaAsync(string id, CancellationToken ct);
-    }
-
-    public record OutboxMessageDTO(
-        string Id,
-        string Payload,
-        string Tipo,
-        int Tentativas = 0,
-        bool Processado = false
-    );
+        Task<IEnumerable<OutboxMessage>> ObterNaoProcessadosAsync(int limite, CancellationToken ct);
+        Task MarcarComoProcessadoAsync(Guid id, CancellationToken ct);
+        Task AdicionarAsync(OutboxMessage message, CancellationToken ct);
+        Task IncrementarFalhaAsync(Guid id, CancellationToken ct);
+    }    
 }

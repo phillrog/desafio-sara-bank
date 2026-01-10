@@ -15,6 +15,7 @@ public class ProcessarDebitoSagaHandlerTests
     private readonly Mock<IContaRepository> _mockContaRepo;
     private readonly Mock<IMovimentacaoRepository> _mockMovRepo;
     private readonly Mock<ILogger<ProcessarDebitoSagaHandler>> _mockLogger;
+    private readonly Mock<IOutboxRepository> _mockOutboxRepo; // Ajustado nome para padrão
     private readonly ProcessarDebitoSagaHandler _handler;
 
     public ProcessarDebitoSagaHandlerTests()
@@ -23,7 +24,9 @@ public class ProcessarDebitoSagaHandlerTests
         _mockContaRepo = new Mock<IContaRepository>();
         _mockMovRepo = new Mock<IMovimentacaoRepository>();
         _mockLogger = new Mock<ILogger<ProcessarDebitoSagaHandler>>();
+        _mockOutboxRepo = new Mock<IOutboxRepository>();
 
+        // Simula o comportamento da transação (executa o que recebe)
         _mockUow.Setup(u => u.ExecutarAsync<bool>(It.IsAny<Func<Task<bool>>>()))
                 .Returns<Func<Task<bool>>>(async (acao) => await acao());
 
@@ -34,7 +37,8 @@ public class ProcessarDebitoSagaHandlerTests
             _mockUow.Object,
             _mockContaRepo.Object,
             _mockMovRepo.Object,
-            _mockLogger.Object);
+            _mockLogger.Object,
+            _mockOutboxRepo.Object);
     }
 
     [Fact]
@@ -51,29 +55,36 @@ public class ProcessarDebitoSagaHandlerTests
 
         _mockContaRepo.Setup(r => r.ObterPorIdAsync(contaOrigem.Id)).ReturnsAsync(contaOrigem);
 
+        // Variável para capturar o que foi enviado
+        OutboxMessage mensagemEnviada = null;
+        _mockOutboxRepo
+            .Setup(r => r.AdicionarAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()))
+            .Callback<OutboxMessage, CancellationToken>((m, ct) => mensagemEnviada = m)
+            .Returns(Task.CompletedTask);
+
         // Act
         await _handler.Handle(eventoIniciado, CancellationToken.None);
 
         // Assert
-        contaOrigem.Saldo.Should().Be(800m); // 1000 - 200
-
+        contaOrigem.Saldo.Should().Be(800m);
         _mockContaRepo.Verify(r => r.AtualizarAsync(It.IsAny<ContaCorrente>()), Times.Once);
 
-        _mockUow.Verify(u => u.AdicionarAoOutboxAsync(
-            It.Is<string>(s => s.Contains("SaldoDebitado")),
-            "SaldoDebitado"), Times.Once);
+        // Se o verify falhar, inspecione a variável 'mensagemEnviada' no Debug
+        mensagemEnviada.Should().NotBeNull("O Handler deveria ter chamado o AdicionarAsync do Outbox");
+        mensagemEnviada.Tipo.Should().Be("SaldoDebitado");
+        mensagemEnviada.Topico.Should().Be("sara-bank-transferencias-debitadas");
     }
 
     [Fact]
     public async Task Handle_DeveCancelarSaga_QuandoSaldoForInsuficiente()
     {
         // Arrange
-        var contaOrigem = new ContaCorrente(Guid.NewGuid(), 50m); // Saldo baixo
+        var contaOrigem = new ContaCorrente(Guid.NewGuid(), 50m);
         var eventoIniciado = new TransferenciaIniciadaEvent(
             SagaId: Guid.NewGuid(),
             ContaOrigemId: contaOrigem.Id,
             ContaDestinoId: Guid.NewGuid(),
-            Valor: 200m // Valor alto
+            Valor: 200m
         );
 
         _mockContaRepo.Setup(r => r.ObterPorIdAsync(contaOrigem.Id)).ReturnsAsync(contaOrigem);
@@ -82,14 +93,15 @@ public class ProcessarDebitoSagaHandlerTests
         await _handler.Handle(eventoIniciado, CancellationToken.None);
 
         // Assert
-        contaOrigem.Saldo.Should().Be(50m); // Saldo não pode mudar
+        contaOrigem.Saldo.Should().Be(50m);
 
-        // Verifica se disparou o evento de CANCELAMENTO por erro de negócio
-        _mockUow.Verify(u => u.AdicionarAoOutboxAsync(
-            It.Is<string>(s => s.Contains("TransferenciaCancelada")),
-            "TransferenciaCancelada"), Times.Once);
+        //
+        _mockOutboxRepo.Verify(r => r.AdicionarAsync(
+            It.Is<OutboxMessage>(m =>
+                m.Tipo == "TransferenciaCancelada" &&
+                m.Topico == "sara-bank-transferencias-erros"),
+            It.IsAny<CancellationToken>()), Times.Once);
 
-        // Não deve ter atualizado saldo nem criado movimentação de débito
         _mockContaRepo.Verify(r => r.AtualizarAsync(It.IsAny<ContaCorrente>()), Times.Never);
     }
 
@@ -100,7 +112,6 @@ public class ProcessarDebitoSagaHandlerTests
         var sagaId = Guid.NewGuid();
         var evento = new TransferenciaIniciadaEvent(sagaId, Guid.NewGuid(), Guid.NewGuid(), 100m);
 
-        // Simula que a movimentação de DÉBITO já existe para esta Saga
         _mockMovRepo.Setup(m => m.ExisteMovimentacaoParaSagaAsync(sagaId, "DEBITO"))
                     .ReturnsAsync(true);
 
@@ -108,8 +119,8 @@ public class ProcessarDebitoSagaHandlerTests
         await _handler.Handle(evento, CancellationToken.None);
 
         // Assert
-        // Se já processou, não deve nem buscar a conta no repositório
         _mockContaRepo.Verify(r => r.ObterPorIdAsync(It.IsAny<Guid>()), Times.Never);
+        _mockOutboxRepo.Verify(r => r.AdicionarAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
 
         _mockLogger.Verify(
             x => x.Log(
@@ -127,7 +138,6 @@ public class ProcessarDebitoSagaHandlerTests
         // Arrange
         var evento = new TransferenciaIniciadaEvent(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m);
 
-        // Força um erro de conexão no repositório
         _mockMovRepo.Setup(m => m.ExisteMovimentacaoParaSagaAsync(It.IsAny<Guid>(), "DEBITO"))
                     .ThrowsAsync(new Exception("Timeout Firestore"));
 
@@ -135,7 +145,6 @@ public class ProcessarDebitoSagaHandlerTests
         Func<Task> act = async () => await _handler.Handle(evento, CancellationToken.None);
 
         // Assert
-        // O handler deve relançar para o Worker tentar novamente (Retry Policy)
         await act.Should().ThrowAsync<Exception>().WithMessage("Timeout Firestore");
 
         _mockLogger.Verify(

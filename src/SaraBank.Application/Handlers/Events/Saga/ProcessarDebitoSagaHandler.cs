@@ -14,17 +14,20 @@ public class ProcessarDebitoSagaHandler : INotificationHandler<TransferenciaInic
     private readonly IContaRepository _contaRepository;
     private readonly IMovimentacaoRepository _movimentacaoRepository;
     private readonly ILogger<ProcessarDebitoSagaHandler> _logger;
+    private readonly IOutboxRepository _outboxRepository;
 
     public ProcessarDebitoSagaHandler(
         IUnitOfWork uow,
         IContaRepository contaRepository,
         IMovimentacaoRepository movimentacaoRepository,
-        ILogger<ProcessarDebitoSagaHandler> logger)
+        ILogger<ProcessarDebitoSagaHandler> logger,
+        IOutboxRepository outboxRepository)
     {
         _uow = uow;
         _contaRepository = contaRepository;
         _movimentacaoRepository = movimentacaoRepository;
         _logger = logger;
+        _outboxRepository = outboxRepository;
     }
 
     public async Task Handle(TransferenciaIniciadaEvent notification, CancellationToken ct)
@@ -46,7 +49,7 @@ public class ProcessarDebitoSagaHandler : INotificationHandler<TransferenciaInic
                 if (origem == null)
                 {
                     _logger.LogError($"Conta {notification.ContaOrigemId} não encontrada.");
-                    await CancelarSaga(notification.SagaId, notification.ContaOrigemId, "Conta de origem inexistente.");
+                    await CancelarSaga(notification.SagaId, notification.ContaOrigemId, "Conta de origem inexistente.", ct);
                     return;
                 }
 
@@ -55,7 +58,7 @@ public class ProcessarDebitoSagaHandler : INotificationHandler<TransferenciaInic
                 {
                     _logger.LogWarning($"[SAGA-CANCEL] {notification.SagaId}: Saldo insuficiente.");
 
-                    await CancelarSaga(notification.SagaId, notification.ContaOrigemId, "Saldo insuficiente.");
+                    await CancelarSaga(notification.SagaId, notification.ContaOrigemId, "Saldo insuficiente.", ct);
                     return;
                 }
 
@@ -79,7 +82,14 @@ public class ProcessarDebitoSagaHandler : INotificationHandler<TransferenciaInic
                     Payload = JsonSerializer.Serialize(proximoEvento)
                 };
 
-                await _uow.AdicionarAoOutboxAsync(JsonSerializer.Serialize(envelope), "SaldoDebitado");
+                var outboxMessage = new OutboxMessage(
+                    Guid.NewGuid(),
+                    JsonSerializer.Serialize(envelope),
+                    "SaldoDebitado",
+                    "sara-bank-transferencias-debitadas"
+                );
+
+                await _outboxRepository.AdicionarAsync(outboxMessage, ct);
 
                 return;
             });
@@ -91,7 +101,7 @@ public class ProcessarDebitoSagaHandler : INotificationHandler<TransferenciaInic
         }
     }
 
-    private async Task CancelarSaga(Guid sagaId, Guid contaId, string motivo)
+    private async Task CancelarSaga(Guid sagaId, Guid contaId, string motivo, CancellationToken ct)
     {
         _logger.LogWarning($"[SAGA-CANCEL] {sagaId}: {motivo}");
 
@@ -102,7 +112,14 @@ public class ProcessarDebitoSagaHandler : INotificationHandler<TransferenciaInic
             SagaId = sagaId,
             Payload = JsonSerializer.Serialize(erroEvento)
         };
+        
+        var outboxMessage = new OutboxMessage(
+                    Guid.NewGuid(),
+                    JsonSerializer.Serialize(envelope),
+                    "TransferenciaCancelada",
+                    "sara-bank-transferencias-erros"
+                );
 
-        await _uow.AdicionarAoOutboxAsync(JsonSerializer.Serialize(envelope), "TransferenciaCancelada");
+        await _outboxRepository.AdicionarAsync(outboxMessage, ct);
     }
 }

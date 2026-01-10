@@ -15,15 +15,18 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
     private readonly IUsuarioRepository _usuarioRepository;
     private readonly IContaRepository _contaRepository;
     private readonly IUnitOfWork _uow;
+    private readonly IOutboxRepository _outboxRepository;
 
     public CadastrarUsuarioHandler(
         IUsuarioRepository usuarioRepository,
         IContaRepository contaRepository,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IOutboxRepository outboxRepository)
     {
         _usuarioRepository = usuarioRepository;
         _contaRepository = contaRepository;
         _uow = uow;
+        _outboxRepository = outboxRepository;
     }
 
     public async Task<string> Handle(CadastrarUsuarioCommand request, CancellationToken ct)
@@ -61,9 +64,15 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
             };
 
             var payload = JsonSerializer.Serialize(envelope, options);
-            
-            // Persistência Atômica no Outbox
-            await _uow.AdicionarAoOutboxAsync(payload, "UsuarioCadastrado");            
+
+            var outboxMessage = new OutboxMessage(
+                Guid.NewGuid(),
+                payload,
+                "UsuarioCadastrado",
+                "sara-bank-usuarios"
+            );
+
+            await _outboxRepository.AdicionarAsync(outboxMessage, ct);
 
             return novoUsuario.Id.ToString();
         });

@@ -14,17 +14,20 @@ public class ProcessarCreditoSagaHandler : INotificationHandler<SaldoDebitadoEve
     private readonly IContaRepository _contaRepository;
     private readonly IMovimentacaoRepository _movimentacaoRepository;
     private readonly ILogger<ProcessarCreditoSagaHandler> _logger;
+    private readonly IOutboxRepository _outboxRepository;
 
     public ProcessarCreditoSagaHandler(
         IUnitOfWork uow,
         IContaRepository contaRepository,
         IMovimentacaoRepository movimentacaoRepository,
-        ILogger<ProcessarCreditoSagaHandler> logger)
+        ILogger<ProcessarCreditoSagaHandler> logger,
+        IOutboxRepository outboxRepository)
     {
         _uow = uow;
         _contaRepository = contaRepository;
         _movimentacaoRepository = movimentacaoRepository;
         _logger = logger;
+        _outboxRepository = outboxRepository;
     }
 
     public async Task Handle(SaldoDebitadoEvent notification, CancellationToken ct)
@@ -66,8 +69,15 @@ public class ProcessarCreditoSagaHandler : INotificationHandler<SaldoDebitadoEve
                     SagaId = notification.SagaId,
                     Payload = JsonSerializer.Serialize(concluido)
                 };
+                
+                var outboxMessage = new OutboxMessage(
+                    Guid.NewGuid(),
+                    JsonSerializer.Serialize(envelope),
+                    "TransferenciaConcluida",
+                    "sara-bank-transferencias-concluidas"
+                );
 
-                await _uow.AdicionarAoOutboxAsync(JsonSerializer.Serialize(envelope), "TransferenciaConcluida");
+                await _outboxRepository.AdicionarAsync(outboxMessage, ct);
 
                 _logger.LogInformation($" [SAGA-SUCCESS] {notification.SagaId}: Crédito realizado.");
                 return true;
@@ -78,11 +88,11 @@ public class ProcessarCreditoSagaHandler : INotificationHandler<SaldoDebitadoEve
             _logger.LogError($" [SAGA-FAILURE] {notification.SagaId}: Falha ao creditar. Erro: {ex.Message}");
 
             // Estorna 
-            await IniciarCompensacao(notification);
+            await IniciarCompensacao(notification, ct);
         }
     }
 
-    private async Task IniciarCompensacao(SaldoDebitadoEvent evt)
+    private async Task IniciarCompensacao(SaldoDebitadoEvent evt, CancellationToken ct)
     {
         var falhaEnvelope = new
         {
@@ -97,6 +107,13 @@ public class ProcessarCreditoSagaHandler : INotificationHandler<SaldoDebitadoEve
             })
         };
 
-        await _uow.AdicionarAoOutboxAsync(JsonSerializer.Serialize(falhaEnvelope), "FalhaNoCredito");
+        var outboxMessage = new OutboxMessage(
+                    Guid.NewGuid(),
+                    JsonSerializer.Serialize(falhaEnvelope),
+                    "FalhaNoCredito",
+                    "sara-bank-transferencias-compensar"
+                );
+
+        await _outboxRepository.AdicionarAsync(outboxMessage, ct);
     }
 }

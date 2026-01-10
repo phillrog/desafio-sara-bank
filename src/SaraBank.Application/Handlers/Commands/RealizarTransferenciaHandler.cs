@@ -4,6 +4,7 @@ using MediatR;
 using SaraBank.Application.Commands;
 using SaraBank.Application.Events;
 using SaraBank.Application.Interfaces;
+using SaraBank.Domain.Entities;
 using SaraBank.Domain.Interfaces;
 using System.Text.Json;
 
@@ -14,15 +15,18 @@ public class RealizarTransferenciaHandler : IRequestHandler<RealizarTransferenci
     private readonly IContaRepository _contaRepository;
     private readonly IMovimentacaoRepository _movimentacaoRepository;
     private readonly IUnitOfWork _uow;
+    private readonly IOutboxRepository _outboxRepository;
 
     public RealizarTransferenciaHandler(
         IContaRepository contaRepository,
         IMovimentacaoRepository movimentacaoRepository,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IOutboxRepository outboxRepository)
     {
         _contaRepository = contaRepository;
         _movimentacaoRepository = movimentacaoRepository;
         _uow = uow;
+        _outboxRepository = outboxRepository;
     }
 
     public async Task<bool> Handle(RealizarTransferenciaCommand request, CancellationToken ct)
@@ -55,11 +59,14 @@ public class RealizarTransferenciaHandler : IRequestHandler<RealizarTransferenci
                 Payload = JsonSerializer.Serialize(evento)
             };
 
-            // Salva no Outbox o primeiro passo da Saga
-            await _uow.AdicionarAoOutboxAsync(
+            var outboxMessage = new OutboxMessage(
+                Guid.NewGuid(),
                 JsonSerializer.Serialize(envelope),
-                "TransferenciaIniciada"
+                "TransferenciaIniciada",
+                "sara-bank-transferencias-iniciadas"
             );
+
+            await _outboxRepository.AdicionarAsync(outboxMessage, ct);
 
             return true;
         });
