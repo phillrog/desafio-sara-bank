@@ -47,6 +47,5 @@ app.UseGcpIdentityAuthConfiguration();
 
 app.MapControllers();
 
-
 app.MapGet("/", () => "SaraBank API is Running!");
 app.Run();
