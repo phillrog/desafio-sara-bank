@@ -7,5 +7,7 @@ namespace SaraBank.Application.Commands
         string Nome,
         string CPF,
         string Email,
+        string Senha,
+        string ConfirmacaoSenha,
         decimal SaldoInicial, Guid RequestId) : IRequest<string>, IIdempotentCommand;
 }

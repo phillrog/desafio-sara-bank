@@ -1,4 +1,6 @@
-﻿using FluentValidation;
+﻿using FirebaseAdmin;
+using FluentValidation;
+using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
 using Google.Cloud.PubSub.V1;
 using MediatR;
@@ -8,15 +10,24 @@ using SaraBank.Domain.Interfaces;
 using SaraBank.Infrastructure.Persistence;
 using SaraBank.Infrastructure.Persistence.Converters;
 using SaraBank.Infrastructure.Repositories;
+using SaraBank.Infrastructure.Services;
 using SaraBank.Infrastructure.Workers;
 
 namespace SaraBank.API.Configurations;
 
 public static class DependencyInjectionConfig
 {
-    public static IServiceCollection AddDependencyInjection(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddDependencyInjection(this IServiceCollection services, IConfiguration configuration, string projectId)
     {
-        var projectId = configuration["Firestore:ProjectId"] ?? "sara-bank";
+        if (FirebaseApp.DefaultInstance == null)
+        {
+            FirebaseApp.Create(new AppOptions
+            {
+                Credential = GoogleCredential.GetApplicationDefault(),
+                ProjectId = projectId
+            });
+        }
+
         var topicId = configuration["PubSub:TopicId"] ?? "sara-bank-transacoes-topic";
         var subscriptionId = configuration["PubSub:SubscriptionId"] ?? "sara-bank-notificacoes-sub";
 
@@ -173,6 +184,12 @@ public static class DependencyInjectionConfig
 
         // Motor (Outbox)
         services.AddHostedService<OutboxWorker>();
+
+        // IDENTIDADE (GOOGLE IDENTITY PLATFORM / FIREBASE)
+        // Wrapper: SDK do Google
+        services.AddSingleton<IFirebaseAuthWrapper, FirebaseAuthWrapper>();
+        services.AddHttpClient<IIdentityService, FirebaseAuthService>();
+
 
         return services;
     }

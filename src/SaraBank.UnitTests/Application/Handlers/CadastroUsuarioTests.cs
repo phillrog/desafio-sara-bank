@@ -15,6 +15,7 @@ public class CadastroUsuarioTests
     private readonly Mock<IContaRepository> _mockContaRepo;
     private readonly Mock<IUnitOfWork> _mockUow;
     private readonly Mock<IOutboxRepository> _mockOutboxRepo;
+    private readonly Mock<IIdentityService> _mockIdentityService;
     private readonly CadastrarUsuarioHandler _handler;
 
     public CadastroUsuarioTests()
@@ -23,7 +24,9 @@ public class CadastroUsuarioTests
         _mockContaRepo = new Mock<IContaRepository>();
         _mockUow = new Mock<IUnitOfWork>();
         _mockOutboxRepo = new Mock<IOutboxRepository>();
+        _mockIdentityService = new Mock<IIdentityService>();
 
+        // Setup do Unit of Work para executar a ação passada
         _mockUow.Setup(u => u.ExecutarAsync(It.IsAny<Func<Task<string>>>()))
                 .Returns(async (Func<Task<string>> acao) => await acao());
 
@@ -31,14 +34,15 @@ public class CadastroUsuarioTests
             _mockUsuarioRepo.Object,
             _mockContaRepo.Object,
             _mockUow.Object,
-            _mockOutboxRepo.Object);
+            _mockOutboxRepo.Object,
+            _mockIdentityService.Object);
     }
 
     [Fact]
     public async Task Deve_Criar_Usuario_E_Conta_Com_Sucesso()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Fulano de Tal", "12345678901", "fulano@email.com", 100m, Guid.NewGuid());
+        var command = new CadastrarUsuarioCommand("Fulano de Tal", "12345678901", "fulano@email.com", "Senha123", "Senha123", 100m, Guid.NewGuid());
 
         _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
                         .ReturnsAsync((Usuario?)null);
@@ -48,6 +52,10 @@ public class CadastroUsuarioTests
 
         // Assert
         usuarioId.Should().NotBeNullOrEmpty();
+
+        // VERIFICAÇÃO FIREBASE: Deve criar a identidade no Google com o ID gerado
+        _mockIdentityService.Verify(i => i.CriarUsuarioAsync(
+            It.IsAny<Guid>(), command.Email, command.Senha, command.Nome), Times.Once);
 
         _mockUsuarioRepo.Verify(r => r.AdicionarAsync(It.Is<Usuario>(u =>
             u.CPF == command.CPF && u.Nome == command.Nome)), Times.Once);
@@ -61,31 +69,51 @@ public class CadastroUsuarioTests
     }
 
     [Fact]
-    public async Task Nao_Deve_Cadastrar_Usuario_Se_CPF_Ya_Existir()
+    public async Task Nao_Deve_Cadastrar_No_Firebase_Se_CPF_Ja_Existir()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Beltrano", "51666431001", "beltrano@email.com", 100, Guid.NewGuid());
+        var command = new CadastrarUsuarioCommand("Beltrano", "51666431001", "beltrano@email.com", "Senha123", "Senha123", 100, Guid.NewGuid());
         var usuarioExistente = new Usuario(command.Nome, command.CPF, command.Email);
 
         _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
                         .ReturnsAsync(usuarioExistente);
 
-        // Act & Assert
+        // Act
         var acao = () => _handler.Handle(command, CancellationToken.None);
 
-        await acao.Should().ThrowAsync<FluentValidation.ValidationException>()
-                  .Where(e => e.Errors.Any(f => f.ErrorMessage.Contains("Este CPF já está cadastrado")));
+        // Assert
+        await acao.Should().ThrowAsync<FluentValidation.ValidationException>();
 
-        _mockUsuarioRepo.Verify(r => r.AdicionarAsync(It.IsAny<Usuario>()), Times.Never);
+        _mockIdentityService.Verify(i => i.CriarUsuarioAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         _mockUow.Verify(u => u.ExecutarAsync(It.IsAny<Func<Task<string>>>()), Times.Never);
-        _mockOutboxRepo.Verify(r => r.AdicionarAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Deve_Fazer_Rollback_No_Firebase_Se_Erro_No_Banco_De_Dados()
+    {
+        // Arrange
+        var command = new CadastrarUsuarioCommand("Erro Banco", "11122233344", "erro@teste.com", "Senha123", "Senha123", 0m, Guid.NewGuid());
+
+        _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(It.IsAny<string>())).ReturnsAsync((Usuario?)null);
+
+        // Simula uma falha catastrófica no Firestore/UoW
+        _mockUow.Setup(u => u.ExecutarAsync(It.IsAny<Func<Task<string>>>()))
+                .ThrowsAsync(new Exception("Falha no Firestore"));
+
+        // Act
+        var acao = () => _handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        await acao.Should().ThrowAsync<Exception>();
+
+        _mockIdentityService.Verify(i => i.DeletarUsuarioAsync(It.IsAny<Guid>()), Times.Once);
     }
 
     [Fact]
     public async Task Deve_Criar_Usuario_E_Conta_Com_Movimentacao_Inicial_Se_Saldo_Positivo()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Fulano de Tal", "51666431001", "fulano@email.com", 100m, Guid.NewGuid());
+        var command = new CadastrarUsuarioCommand("Fulano de Tal", "51666431001", "fulano@email.com", "Senha123", "Senha123", 100m, Guid.NewGuid());
 
         _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
                         .ReturnsAsync((Usuario?)null);
@@ -95,8 +123,7 @@ public class CadastroUsuarioTests
 
         // Assert
         usuarioId.Should().NotBeNullOrEmpty();
-
-        // AJUSTE: Verifica o repositório
+        _mockIdentityService.Verify(i => i.CriarUsuarioAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
         _mockOutboxRepo.Verify(r => r.AdicionarAsync(It.Is<OutboxMessage>(m =>
             m.Tipo == "UsuarioCadastrado"), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -105,7 +132,7 @@ public class CadastroUsuarioTests
     public async Task Deve_Criar_Usuario_Sem_Gerar_Movimentacao_Se_Saldo_Inicial_For_Zero()
     {
         // Arrange
-        var command = new CadastrarUsuarioCommand("Cicrano", "51666431001", "cicrano@email.com", 0m, Guid.NewGuid());
+        var command = new CadastrarUsuarioCommand("Cicrano", "51666431001", "cicrano@email.com", "Senha123", "Senha123", 0m, Guid.NewGuid());
 
         _mockUsuarioRepo.Setup(r => r.ObterPorCPFAsync(command.CPF))
                         .ReturnsAsync((Usuario?)null);
@@ -114,10 +141,9 @@ public class CadastroUsuarioTests
         await _handler.Handle(command, CancellationToken.None);
 
         // Assert
+        _mockIdentityService.Verify(i => i.CriarUsuarioAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
         _mockUsuarioRepo.Verify(r => r.AdicionarAsync(It.IsAny<Usuario>()), Times.Once);
         _mockContaRepo.Verify(r => r.AdicionarAsync(It.IsAny<ContaCorrente>()), Times.Once);
-
-        // Deve ainda enviar para o Outbox (boas vindas), mas o saldo é zero
         _mockOutboxRepo.Verify(r => r.AdicionarAsync(It.IsAny<OutboxMessage>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

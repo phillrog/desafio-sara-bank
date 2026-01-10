@@ -22,6 +22,17 @@ public class CadastrarUsuarioCommandValidator : AbstractValidator<CadastrarUsuar
 
         RuleFor(x => x.SaldoInicial)
             .GreaterThanOrEqualTo(0).WithMessage("O saldo inicial não pode ser negativo.");
+
+        RuleFor(x => x.Senha)
+            .NotEmpty().WithMessage("A senha é obrigatória.")
+            .MinimumLength(6).WithMessage("A senha deve ter pelo menos 6 caracteres.")
+            .Matches(@"[A-Z]").WithMessage("A senha deve conter pelo menos uma letra maiúscula.")
+            .Matches(@"[0-9]").WithMessage("A senha deve conter pelo menos um número.");
+
+        RuleFor(x => x.ConfirmacaoSenha)
+            .NotEmpty().WithMessage("A confirmação de senha é obrigatória.")
+            .Equal(x => x.Senha).WithMessage("As senhas não conferem.");
+
     }
 
     // Método auxiliar simples para validação lógica de CPF (opcional)

@@ -16,17 +16,20 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
     private readonly IContaRepository _contaRepository;
     private readonly IUnitOfWork _uow;
     private readonly IOutboxRepository _outboxRepository;
+    private readonly IIdentityService _identityService;
 
     public CadastrarUsuarioHandler(
         IUsuarioRepository usuarioRepository,
         IContaRepository contaRepository,
         IUnitOfWork uow,
-        IOutboxRepository outboxRepository)
+        IOutboxRepository outboxRepository,
+        IIdentityService identityService)
     {
         _usuarioRepository = usuarioRepository;
         _contaRepository = contaRepository;
         _uow = uow;
         _outboxRepository = outboxRepository;
+        _identityService = identityService;
     }
 
     public async Task<string> Handle(CadastrarUsuarioCommand request, CancellationToken ct)
@@ -34,47 +37,58 @@ public class CadastrarUsuarioHandler : IRequestHandler<CadastrarUsuarioCommand, 
         var usuarioExistente = await _usuarioRepository.ObterPorCPFAsync(request.CPF);
         if (usuarioExistente != null)
         {
-            throw new ValidationException(new[] {new ValidationFailure("CPF", "Este CPF já está cadastrado no SARA Bank.")});
+            throw new ValidationException(new[] { new ValidationFailure("CPF", "Este CPF já está cadastrado no SARA Bank.") });
         }
 
-        return await _uow.ExecutarAsync(async () =>
+        var novoUsuario = new Usuario(request.Nome, request.CPF, request.Email);
+
+        await _identityService.CriarUsuarioAsync(novoUsuario.Id, request.Email, request.Senha, request.Nome);
+        try
         {
-            var novoUsuario = new Usuario(request.Nome, request.CPF, request.Email);
-            await _usuarioRepository.AdicionarAsync(novoUsuario);
-
-            var novaConta = new ContaCorrente(novoUsuario.Id, 0); // Deve iniciar com zero se não haverá duplicidade
-            await _contaRepository.AdicionarAsync(novaConta);
-
-            var evento = new UsuarioCadastradoEvent
-            (
-                UsuarioId: novoUsuario.Id,
-                Nome: novoUsuario.Nome,
-                Email: novoUsuario.Email,
-                ContaId: novaConta.Id,
-                DataCriacao: DateTime.UtcNow,
-                SaldoInicial: request.SaldoInicial
-            );
-
-            var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
-            var envelope = new
+            return await _uow.ExecutarAsync(async () =>
             {
-                TipoEvento = "UsuarioCadastrado",
-                Payload = JsonSerializer.Serialize(evento, options)
-            };
 
-            var payload = JsonSerializer.Serialize(envelope, options);
+                await _usuarioRepository.AdicionarAsync(novoUsuario);
 
-            var outboxMessage = new OutboxMessage(
-                Guid.NewGuid(),
-                payload,
-                "UsuarioCadastrado",
-                "sara-bank-usuarios"
-            );
+                var novaConta = new ContaCorrente(novoUsuario.Id, 0); // Deve iniciar com zero se não haverá duplicidade
+                await _contaRepository.AdicionarAsync(novaConta);
 
-            await _outboxRepository.AdicionarAsync(outboxMessage, ct);
+                var evento = new UsuarioCadastradoEvent
+                (
+                    UsuarioId: novoUsuario.Id,
+                    Nome: novoUsuario.Nome,
+                    Email: novoUsuario.Email,
+                    ContaId: novaConta.Id,
+                    DataCriacao: DateTime.UtcNow,
+                    SaldoInicial: request.SaldoInicial
+                );
 
-            return novoUsuario.Id.ToString();
-        });
+                var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+                var envelope = new
+                {
+                    TipoEvento = "UsuarioCadastrado",
+                    Payload = JsonSerializer.Serialize(evento, options)
+                };
+
+                var payload = JsonSerializer.Serialize(envelope, options);
+
+                var outboxMessage = new OutboxMessage(
+                    Guid.NewGuid(),
+                    payload,
+                    "UsuarioCadastrado",
+                    "sara-bank-usuarios"
+                );
+
+                await _outboxRepository.AdicionarAsync(outboxMessage, ct);
+
+                return novoUsuario.Id.ToString();
+            });
+        }
+        catch (Exception)
+        {
+            await _identityService.DeletarUsuarioAsync(novoUsuario.Id);
+            throw;
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SaraBank.Application.Commands;
 
@@ -19,6 +20,7 @@ public class UsuariosController : ControllerBase
     /// Realiza o cadastro de um novo usuário e abre uma conta automaticamente.
     /// </summary>
     [HttpPost]
+    [AllowAnonymous]
     public async Task<IActionResult> Cadastrar([FromBody] CadastrarUsuarioCommand command)
     {
         // O Handler gerencia a criação do usuário e da conta na mesma transação
