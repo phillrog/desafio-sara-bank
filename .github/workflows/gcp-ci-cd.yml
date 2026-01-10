@@ -97,10 +97,11 @@ jobs:
         region: ${{ env.REGION }}
         image: ${{ env.REGION }}-docker.pkg.dev/${{ github.event.inputs.project_id }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
         env_vars: |
+          Firestore__CredentialPath=
           Firebase__ApiKey=${{ github.event.inputs.firebase_api_key }}
+          Firestore__ProjectId=${{ github.event.inputs.project_id }}
           ASPNETCORE_ENVIRONMENT=Development
           ASPNETCORE_URLS=http://0.0.0.0:8080
-          Firestore__ProjectId=${{ github.event.inputs.project_id }}
         flags: '--allow-unauthenticated --timeout=300'
 
     - name: Exibir Link do Swagger

@@ -6,7 +6,7 @@ System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolTyp
 var builder = WebApplication.CreateBuilder(args);
 
 var credentialPath = builder.Configuration["Firestore:CredentialPath"];
-if (!string.IsNullOrEmpty(credentialPath))
+if (!string.IsNullOrEmpty(credentialPath) && File.Exists(credentialPath))
 {
     Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credentialPath);
 }
@@ -38,7 +38,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCustomizedSwagger();
 
-//app.UseHttpsRedirection();
+app.UseHttpsRedirection();
 
 // Exception Handling Middleware
 app.UseMiddleware<ExceptionHandlingMiddleware>();
