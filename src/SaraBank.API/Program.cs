@@ -38,7 +38,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCustomizedSwagger();
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 // Exception Handling Middleware
 app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -47,4 +47,6 @@ app.UseGcpIdentityAuthConfiguration();
 
 app.MapControllers();
 
+
+app.MapGet("/", () => "SaraBank API is Running!");
 app.Run();
