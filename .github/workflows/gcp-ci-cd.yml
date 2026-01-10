@@ -1,0 +1,79 @@
+name: CI/CD SaraBank
+on:
+  workflow_dispatch:
+    inputs:
+      gcp_sa_key:
+        description: 'Chave JSON do GCP'
+        required: true
+        type: string
+      firebase_api_key:
+        description: 'Firebase API Key'
+        required: true
+        type: string
+      project_id:
+        description: 'Nome do projeto (ex: sara-bank)'
+        required: true
+        type: string
+
+env:
+  REGION: 'us-central1'
+  SERVICE: 'sarabank-api'
+  REPO: 'sarabank-repo'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore
+      run: dotnet restore src/SaraBank.API/SaraBank.API.csproj
+
+    - name: Run Tests
+      run: dotnet test --no-restore --verbosity normal
+
+  deploy:
+    needs: test 
+    runs-on: ubuntu-latest
+    environment: Production
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Google Auth
+      uses: 'google-github-actions/auth@v2'
+      with:
+        credentials_json: '${{ github.event.inputs.gcp_sa_key }}'
+
+    - name: Docker Auth
+      run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+    - name: Build and Push Docker Image
+      run: |
+        # Corrigido: Acessando o input corretamente sem chaves aninhadas
+        DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ github.event.inputs.project_id }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}"
+        docker build -t $DOCKER_TAG -f src/SaraBank.API/Dockerfile .
+        docker push $DOCKER_TAG
+
+    - name: Deploy to Cloud Run
+      id: deploy_step
+      uses: 'google-github-actions/deploy-cloudrun@v2'
+      with:
+        service: ${{ env.SERVICE }}
+        region: ${{ env.REGION }}
+        # Corrigido: Sintaxe da imagem ajustada
+        image: ${{ env.REGION }}-docker.pkg.dev/${{ github.event.inputs.project_id }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
+        env_vars: |
+          Firebase__ApiKey=${{ github.event.inputs.firebase_api_key }}
+          ASPNETCORE_ENVIRONMENT=Development
+        flags: '--allow-unauthenticated'
+
+    - name: Link do Swagger
+      run: echo "Sucesso! Acesse o Swagger em ${{ steps.deploy_step.outputs.url }}/swagger"
