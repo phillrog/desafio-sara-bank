@@ -1,7 +1,6 @@
-name: CI/CD SaraBank
+﻿name: CI/CD SaraBank
 
 on:
-  # Disparo manual via interface do GitHub
   workflow_dispatch:
     inputs:
       gcp_sa_key:
@@ -9,11 +8,11 @@ on:
         required: true
         type: string
       firebase_api_key:
-        description: 'Chave de API do Firebase (Web API Key)'
+        description: 'Firebase API Key'
         required: true
         type: string
       project_id:
-        description: 'ID do seu projeto no Google Cloud (ex: sara-bank)'
+        description: 'ID do projeto no GCP'
         required: true
         type: string
 
@@ -24,9 +23,9 @@ env:
 
 jobs:
   # ---------------------------------------------------------
-  # JOB 1: Integração Contínua (Testes)
+  # JOB 1: Compilação (Build)
   # ---------------------------------------------------------
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Código
@@ -37,20 +36,40 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
-    - name: Restaurar Dependências      
+    - name: Restaurar Dependências
+      run: dotnet restore src/
+
+    - name: Build da Solução
+      run: dotnet build src/ --no-restore -c Release
+
+  # ---------------------------------------------------------
+  # JOB 2: Testes Unitários
+  # ---------------------------------------------------------
+  test:
+    needs: build # Só testa se o build passar
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Código
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restaurar Dependências
       run: dotnet restore src/
 
     - name: Executar Testes
-      # Procura e executa todos os projetos de teste dentro da pasta src/
       run: dotnet test src/ --no-restore --verbosity normal
 
   # ---------------------------------------------------------
-  # JOB 2: Entrega Contínua (Provisionamento e Deploy)
+  # JOB 3: Deploy (CD)
   # ---------------------------------------------------------
   deploy:
-    needs: test # Só inicia se os testes passarem
+    needs: test # se os testes passarem avança
     runs-on: ubuntu-latest
-    environment: Production # Ativa a necessidade de sua aprovação manual no GitHub
+    environment: Production
     
     steps:
     - name: Checkout Código
@@ -67,8 +86,6 @@ jobs:
     - name: Build e Push da Imagem Docker
       run: |
         DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ github.event.inputs.project_id }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}"
-        
-        # Build usando o contexto na raiz e apontando o Dockerfile na pasta da API
         docker build -t $DOCKER_TAG -f src/SaraBank.API/Dockerfile .
         docker push $DOCKER_TAG
 
@@ -79,17 +96,16 @@ jobs:
         service: ${{ env.SERVICE }}
         region: ${{ env.REGION }}
         image: ${{ env.REGION }}-docker.pkg.dev/${{ github.event.inputs.project_id }}/${{ env.REPO }}/${{ env.SERVICE }}:${{ github.sha }}
-        # Variáveis de ambiente injetadas no container
         env_vars: |
           Firebase__ApiKey=${{ github.event.inputs.firebase_api_key }}
           ASPNETCORE_ENVIRONMENT=Development
-          ASPNETCORE_URLS=http://+:8080
+          ASPNETCORE_URLS=http://0.0.0.0:8080
+          PORT=8080          
         flags: '--allow-unauthenticated'
 
     - name: Exibir Link do Swagger
-      # Imprime o link final facilitando o seu clique para teste
       run: |
         echo "===================================================="
-        echo "DEPOIS DE APROVAR, ACESSE O SWAGGER EM:"
+        echo "SUCESSO! ACESSE O SWAGGER EM:"
         echo "${{ steps.deploy_step.outputs.url }}/swagger"
         echo "===================================================="
