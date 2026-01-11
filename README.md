@@ -229,9 +229,4 @@ YAML
 
 Destrua os recursos criados com terraform, em seguida o projeto para evitar custos.
 
-<img width="1868" height="967" alt="Captura de tela 2026-01-10 211557" src="https://github.com/user-attachments/assets/20df5eb4-abe4-412e-9f26-89fbf7aa3613" />
-
-
-
-
-
+<img width="1868" height="972" alt="Captura de tela 2026-01-10 213810" src="https://github.com/user-attachments/assets/6c7047b5-b2af-405f-8a4f-724212462b3a" />
