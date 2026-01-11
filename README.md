@@ -198,18 +198,8 @@ No seu repositório do GitHub, vá em **Settings > Secrets and variables > Actio
 
 -   `FIREBASE_API_KEY`: A chave de API do seu Identity Platform.
 
-#### 3\. Como o Projeto utiliza essa Chave
+<img width="466" height="583" alt="image" src="https://github.com/user-attachments/assets/f31c30ea-86f8-4266-95ce-e37ad09cd122" />
 
-O workflow do GitHub Actions (`.yml`) está configurado para decodificar essa string e autenticar automaticamente no Google Cloud antes de realizar o Build do Docker e o Deploy no Cloud Run:
-
-YAML
-
-```
-- name: 'Authenticate to Google Cloud'
-  uses: 'google-github-actions/auth@v2'
-  with:
-    credentials_json: '${{ secrets.GCP_SA_KEY }}'
-```
 
 # Resultado
 
