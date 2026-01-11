@@ -11,6 +11,11 @@ resource "google_project_service" "pubsub" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "identity_platform" {
+  service            = "identitytoolkit.googleapis.com"
+  disable_on_destroy = false 
+}
+
 # Ativa a API do Artifact Registry
 resource "google_project_service" "artifact_registry" {
   service            = "artifactregistry.googleapis.com"
@@ -41,6 +46,7 @@ resource "google_firestore_database" "database" {
   location_id = var.region
   type        = "FIRESTORE_NATIVE"
 
+  deletion_policy = "DELETE"
   depends_on = [google_project_service.firestore]
 }
 
