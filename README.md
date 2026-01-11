@@ -138,7 +138,9 @@ Para rodar o projeto localmente e conectar ao ambiente da nuvem, é necessário 
 
 2.  Configure o caminho da chave no seu `appsettings.Development.json` ou via variável de ambiente `GOOGLE_APPLICATION_CREDENTIALS`.
 3.  Pegue o ApiKey  do Firebase e coloque no appsettings
+4.  Execute o terraform
 
+Obs:
 *** Como obter a Firebase API Key
 
 Para que a autenticação (JWT) funcione, você precisa da chave que o Google gera automaticamente:
